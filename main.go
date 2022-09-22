@@ -5,11 +5,11 @@ import (
 	"math/big"
 	"os"
 	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/DIMO-Network/meta-transaction-processor/consumer"
 	"github.com/DIMO-Network/meta-transaction-processor/manager"
+	"github.com/DIMO-Network/meta-transaction-processor/status"
 	"github.com/DIMO-Network/meta-transaction-processor/storage"
 	"github.com/Shopify/sarama"
 	"github.com/ethereum/go-ethereum/common"
@@ -48,17 +48,20 @@ func main() {
 
 	store := storage.NewMemStorage()
 
-	manager := manager.New(ethClient, big.NewInt(31337), sender, store, &logger)
-
 	kafkaConfig := sarama.NewConfig()
+	kafkaConfig.Producer.Return.Successes = true
 
 	kafkaClient, err := sarama.NewClient([]string{"localhost:9092"}, kafkaConfig)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create Kafka client.")
 	}
 
-	sigusr1 := make(chan os.Signal, 1)
-	signal.Notify(sigusr1, syscall.SIGUSR1)
+	sprod, err := status.NewKafka(ctx, "topic.transaction.request.status", kafkaClient)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to create Kafka transaction status producer.")
+	}
+
+	manager := manager.New(ethClient, big.NewInt(31337), sender, store, &logger, sprod)
 
 	go func() {
 		consumer.New(ctx, "meta-transaction-processor", "topic.transaction.request.send", kafkaClient, &logger, ethClient, manager)
@@ -98,11 +101,18 @@ func main() {
 					if tx.MinedBlock == nil {
 						logger.Info().Msg("Transaction mined.")
 						store.SetTxMined(tx.ID, minedBlockStore)
+						sprod.Mined(&status.MinedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlockStore})
 					} else {
 						logger.Info().Msg("Transaction confirmed.")
 						for _, l := range rec.Logs {
 							logger.Info().Interface("log", l).Msg("Logged.")
 						}
+						logs := []*status.Log{}
+						for _, log := range rec.Logs {
+							logs = append(logs, &status.Log{Address: log.Address, Topics: log.Topics, Data: log.Data})
+						}
+						logger.Info().Interface("logs", rec.Logs).Msg("Don Logs.")
+						sprod.Confirmed(&status.ConfirmedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlockStore, Successful: rec.Status == 1, Logs: logs})
 						err := store.Remove(tx.ID)
 						if err != nil {
 							logger.Err(err).Msg("Failed to remove transaction from store.")

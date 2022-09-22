@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/DIMO-Network/meta-transaction-processor/status"
 	"github.com/DIMO-Network/meta-transaction-processor/storage"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,25 +24,25 @@ type Manager interface {
 	Receipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
 }
 
-func New(client *ethclient.Client, chainID *big.Int, sender Sender, storage storage.Storage, logger *zerolog.Logger) Manager {
+func New(client *ethclient.Client, chainID *big.Int, sender Sender, storage storage.Storage, logger *zerolog.Logger, sprod status.Producer) Manager {
 	return &manager{
-		client:  client,
-		chainID: chainID,
-		sender:  sender,
-		storage: storage,
-		logger:  logger,
+		client:   client,
+		chainID:  chainID,
+		sender:   sender,
+		storage:  storage,
+		logger:   logger,
+		producer: sprod,
 	}
 }
 
 type manager struct {
-	chainID *big.Int
-	sender  Sender
-	client  *ethclient.Client
-	storage storage.Storage
-	logger  *zerolog.Logger
+	chainID  *big.Int
+	sender   Sender
+	client   *ethclient.Client
+	storage  storage.Storage
+	logger   *zerolog.Logger
+	producer status.Producer
 }
-
-const blockHistory = 5
 
 func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 	head, err := m.client.HeaderByNumber(ctx, nil)
@@ -78,7 +79,6 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 		GasPrice: gasPrice,
 		Gas:      gasLimit,
 		To:       &req.To,
-		Value:    big.NewInt(0),
 		Data:     req.Data,
 	}
 
@@ -118,7 +118,18 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 		return err
 	}
 
-	return m.client.SendTransaction(ctx, signedTx)
+	err = m.client.SendTransaction(ctx, signedTx)
+	if err != nil {
+		return err
+	}
+
+	m.producer.Created(&status.CreatedMsg{
+		ID:    req.ID,
+		Hash:  txHash,
+		Block: store.CreationBlock,
+	})
+
+	return nil
 }
 
 func (m *manager) Receipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {

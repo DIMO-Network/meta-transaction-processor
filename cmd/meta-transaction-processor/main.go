@@ -16,6 +16,9 @@ import (
 	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
 	"github.com/DIMO-Network/shared"
 	"github.com/Shopify/sarama"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
+
 	"github.com/burdiyan/kafkautil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -41,9 +44,24 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	sender, err := sender.FromKey(settings.SenderPrivateKey)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("Couldn't load private key for sender.")
+	var send sender.Sender
+
+	if settings.PrivateKeyMode {
+		logger.Warn().Msg("Using injected private key. Never do this in production.")
+		send, err = sender.FromKey(settings.SenderPrivateKey)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("Couldn't load private key for sender.")
+		}
+	} else {
+		awsconf, err := awsconfig.LoadDefaultConfig(ctx)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("Failed to load AWS configuration.")
+		}
+		kmsc := kms.NewFromConfig(awsconf)
+		send, err = sender.FromKMS(ctx, kmsc, settings.KMSKeyID)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("Couldn't create KMS signer.")
+		}
 	}
 
 	ethClient, err := ethclient.Dial(settings.EthereumRPCURL)
@@ -70,62 +88,71 @@ func main() {
 
 	chainID := big.NewInt(int64(settings.EthereumChainID))
 
-	manager := manager.New(ethClient, chainID, sender, store, &logger, sprod)
+	manager := manager.New(ethClient, chainID, send, store, &logger, sprod)
 
 	go func() {
 		consumer.New(ctx, "meta-transaction-processor", settings.TransactionRequestTopic, kafkaClient, &logger, ethClient, manager)
 	}()
 
+	tickerDone := make(chan struct{})
+
 	go func() {
-		for range time.NewTicker(10 * time.Second).C {
-			head, err := ethClient.HeaderByNumber(ctx, nil)
-			if err != nil {
-				logger.Err(err).Msg("Failed to get block.")
-				continue
-			}
+		defer close(tickerDone)
+		ticker := time.NewTicker(10 * time.Second)
+		for {
+			select {
+			case <-ticker.C:
+				head, err := ethClient.HeaderByNumber(ctx, nil)
+				if err != nil {
+					logger.Err(err).Msg("Failed to get block.")
+					continue
+				}
 
-			headNumber := head.Number
+				headNumber := head.Number
 
-			txes, _ := store.List()
-			for _, tx := range txes {
-				logger := logger.With().Str("id", tx.ID).Str("hash", tx.Hash.Hex()).Logger()
-				if tx.MinedBlock == nil || new(big.Int).Sub(headNumber, tx.MinedBlock.Number).Cmp(confirmationBlocks) >= 0 {
-					rec, err := manager.Receipt(ctx, tx.Hash)
-					if err != nil {
-						logger.Err(err).Msg("Failed to get receipt.")
-						continue
-					}
-
-					minedBlock, err := ethClient.BlockByHash(ctx, rec.BlockHash)
-					if err != nil {
-						continue
-					}
-					minedBlockStore := &storage.Block{
-						Number:    minedBlock.Number(),
-						Hash:      minedBlock.Hash(),
-						Timestamp: minedBlock.Time(),
-					}
-					if tx.MinedBlock == nil {
-						logger.Info().Msg("Transaction mined.")
-						store.SetTxMined(tx.ID, minedBlockStore)
-						sprod.Mined(&status.MinedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlockStore})
-					} else {
-						logger.Info().Msg("Transaction confirmed.")
-						for _, l := range rec.Logs {
-							logger.Info().Interface("log", l).Msg("Logged.")
-						}
-						logs := []*status.Log{}
-						for _, log := range rec.Logs {
-							logs = append(logs, &status.Log{Address: log.Address, Topics: log.Topics, Data: log.Data})
-						}
-						sprod.Confirmed(&status.ConfirmedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlockStore, Successful: rec.Status == 1, Logs: logs})
-						err := store.Remove(tx.ID)
+				txes, _ := store.List()
+				for _, tx := range txes {
+					logger := logger.With().Str("id", tx.ID).Str("hash", tx.Hash.Hex()).Logger()
+					if tx.MinedBlock == nil || new(big.Int).Sub(headNumber, tx.MinedBlock.Number).Cmp(confirmationBlocks) >= 0 {
+						rec, err := manager.Receipt(ctx, tx.Hash)
 						if err != nil {
-							logger.Err(err).Msg("Failed to remove transaction from store.")
+							logger.Err(err).Msg("Failed to get receipt.")
+							continue
+						}
+
+						minedBlock, err := ethClient.BlockByHash(ctx, rec.BlockHash)
+						if err != nil {
+							continue
+						}
+						minedBlockStore := &storage.Block{
+							Number:    minedBlock.Number(),
+							Hash:      minedBlock.Hash(),
+							Timestamp: minedBlock.Time(),
+						}
+						if tx.MinedBlock == nil {
+							logger.Info().Msg("Transaction mined.")
+							store.SetTxMined(tx.ID, minedBlockStore)
+							sprod.Mined(&status.MinedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlockStore})
+						} else {
+							logger.Info().Msg("Transaction confirmed.")
+							for _, l := range rec.Logs {
+								logger.Info().Interface("log", l).Msg("Logged.")
+							}
+							logs := []*status.Log{}
+							for _, log := range rec.Logs {
+								logs = append(logs, &status.Log{Address: log.Address, Topics: log.Topics, Data: log.Data})
+							}
+							sprod.Confirmed(&status.ConfirmedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlockStore, Successful: rec.Status == 1, Logs: logs})
+							err := store.Remove(tx.ID)
+							if err != nil {
+								logger.Err(err).Msg("Failed to remove transaction from store.")
+							}
 						}
 					}
 				}
-
+			case <-ctx.Done():
+				ticker.Stop()
+				return
 			}
 		}
 	}()
@@ -137,4 +164,5 @@ func main() {
 	logger.Info().Str("signal", sig.String()).Msg("Received signal, terminating.")
 
 	cancel()
+	<-tickerDone
 }

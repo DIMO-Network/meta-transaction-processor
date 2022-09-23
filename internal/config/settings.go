@@ -5,6 +5,8 @@ type Settings struct {
 	// We typically only specify one.
 	KafkaServers string `json:"KAFKA_SERVERS"`
 
+	// ConsumerGroupName is the name of the consumer group.
+
 	// TransactionRequestTopic is the name of the topic from which the service
 	// receives transaction requests.
 	TransactionRequestTopic string `json:"TRANSACTION_REQUEST_TOPIC"`
@@ -21,8 +23,16 @@ type Settings struct {
 	// list of these is https://chainlist.org.
 	EthereumChainID int `yaml:"ETHEREUM_CHAIN_ID"`
 
+	// PrivateKeyMode is true when the private key for the sender is being injected
+	// into the environment. This should never be used in production.
+	PrivateKeyMode bool `yaml:"PRIVATE_KEY_MODE"`
+
+	// KMSKeyID is the AWS KMS key id for signing transactions. The KeySpec must be
+	// ECC_SECG_P256K1. Only used if PrivateKeyMode is false.
+	KMSKeyID string `yaml:"KMS_KEY_ID"`
+
 	// SenderPrivateKey is a hex-encoded private key for the secp256k1 curve, used
-	// to sign transactions. This should only be used for testing.
+	// to sign transactions. Only used if PrivateKeyMode is true.
 	SenderPrivateKey string `yaml:"SENDER_PRIVATE_KEY"`
 
 	// ConfirmationBlocks is the number of blocks needed to consider a

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/DIMO-Network/meta-transaction-processor/storage"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
 	"github.com/DIMO-Network/shared"
 	"github.com/Shopify/sarama"
 	"github.com/ethereum/go-ethereum/common"
@@ -68,9 +68,9 @@ func (p *kafkaProducer) Confirmed(msg *ConfirmedMsg) {
 	if msg.Successful {
 		logs = make([]*ceLog, 0)
 		for _, l := range msg.Logs {
-			top := make([]string, 0)
-			for _, s := range l.Topics {
-				top = append(top, s.Hex())
+			top := make([]string, len(l.Topics))
+			for i, t := range l.Topics {
+				top[i] = t.Hex()
 			}
 			cel := &ceLog{
 				Address: hexutil.Encode(l.Address[:]),

@@ -4,8 +4,8 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/DIMO-Network/meta-transaction-processor/status"
-	"github.com/DIMO-Network/meta-transaction-processor/storage"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"

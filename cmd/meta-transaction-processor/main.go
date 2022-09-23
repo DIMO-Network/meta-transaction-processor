@@ -5,22 +5,20 @@ import (
 	"math/big"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
-	"github.com/DIMO-Network/meta-transaction-processor/consumer"
-	"github.com/DIMO-Network/meta-transaction-processor/manager"
-	"github.com/DIMO-Network/meta-transaction-processor/status"
-	"github.com/DIMO-Network/meta-transaction-processor/storage"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/config"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/consumer"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/manager"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
+	"github.com/DIMO-Network/shared"
 	"github.com/Shopify/sarama"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
 )
-
-const RPCURL = "http://127.0.0.1:8545"
-
-type Signer interface {
-}
 
 var confirmationBlocks = big.NewInt(12)
 
@@ -31,17 +29,23 @@ type EmitLog struct {
 }
 
 func main() {
+
 	logger := zerolog.New(os.Stdout).With().Timestamp().Str("app", "meta-transaction-processor").Logger()
+	settings, err := shared.LoadConfig[*config.Settings]("settings.yaml")
+	if err != nil {
+		logger.Fatal().Msg("Couldn't load settings.")
+	}
+
+	logger.Info().Int("chainId", settings.EthereumChainID).Msg("Loaded settings.")
+
 	ctx, cancel := context.WithCancel(context.Background())
 
-	senderPrivateKey := os.Getenv("SENDER_PRIVATE_KEY")
-
-	sender, err := manager.KeyAccount(senderPrivateKey)
+	sender, err := manager.KeyAccount(settings.SenderPrivateKey)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Couldn't load private key for sender.")
 	}
 
-	ethClient, err := ethclient.Dial(RPCURL)
+	ethClient, err := ethclient.Dial(settings.EthereumRPCURL)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create Ethereum client.")
 	}
@@ -51,7 +55,7 @@ func main() {
 	kafkaConfig := sarama.NewConfig()
 	kafkaConfig.Producer.Return.Successes = true
 
-	kafkaClient, err := sarama.NewClient([]string{"localhost:9092"}, kafkaConfig)
+	kafkaClient, err := sarama.NewClient(strings.Split(settings.KafkaServers, ","), kafkaConfig)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create Kafka client.")
 	}
@@ -61,13 +65,13 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to create Kafka transaction status producer.")
 	}
 
-	manager := manager.New(ethClient, big.NewInt(31337), sender, store, &logger, sprod)
+	chainID := big.NewInt(int64(settings.EthereumChainID))
+
+	manager := manager.New(ethClient, chainID, sender, store, &logger, sprod)
 
 	go func() {
 		consumer.New(ctx, "meta-transaction-processor", "topic.transaction.request.send", kafkaClient, &logger, ethClient, manager)
 	}()
-
-	logger.Info().Msg("Started.")
 
 	go func() {
 		for range time.NewTicker(10 * time.Second).C {
@@ -111,12 +115,10 @@ func main() {
 						for _, log := range rec.Logs {
 							logs = append(logs, &status.Log{Address: log.Address, Topics: log.Topics, Data: log.Data})
 						}
-						logger.Info().Interface("logs", rec.Logs).Msg("Don Logs.")
 						sprod.Confirmed(&status.ConfirmedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlockStore, Successful: rec.Status == 1, Logs: logs})
 						err := store.Remove(tx.ID)
 						if err != nil {
 							logger.Err(err).Msg("Failed to remove transaction from store.")
-							continue
 						}
 					}
 				}

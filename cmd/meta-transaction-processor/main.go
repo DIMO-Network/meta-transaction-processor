@@ -54,6 +54,7 @@ func main() {
 	store := storage.NewMemStorage()
 
 	kafkaConfig := sarama.NewConfig()
+	kafkaConfig.Version = sarama.V2_8_1_0
 	kafkaConfig.Producer.Return.Successes = true
 
 	kafkaClient, err := sarama.NewClient(strings.Split(settings.KafkaServers, ","), kafkaConfig)

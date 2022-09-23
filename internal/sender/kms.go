@@ -57,6 +57,7 @@ func (s *kmsSender) Sign(ctx context.Context, hash common.Hash) ([]byte, error) 
 		sigS = new(big.Int).Sub(secp256k1N, sigSNum).Bytes()
 	}
 
+	// Determine whether V ought to be 0 or 1.
 	sigRS := append(fixLen(sigR), fixLen(sigS)...)
 	sigRSV := append(sigRS, 0)
 

@@ -12,3 +12,7 @@ CONFIRMATION_BLOCKS: 12
 
 # Default broker port.
 KAFKA_SERVERS: 127.0.0.1:9092
+
+# Same on all environments.
+TRANSACTION_REQUEST_TOPIC: topic.transaction.request.send
+TRANSACTION_STATUS_TOPIC: topic.transaction.request.status

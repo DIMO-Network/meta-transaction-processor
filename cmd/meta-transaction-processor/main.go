@@ -16,6 +16,7 @@ import (
 	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
 	"github.com/DIMO-Network/shared"
 	"github.com/Shopify/sarama"
+	"github.com/burdiyan/kafkautil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
@@ -30,7 +31,6 @@ type EmitLog struct {
 }
 
 func main() {
-
 	logger := zerolog.New(os.Stdout).With().Timestamp().Str("app", "meta-transaction-processor").Logger()
 	settings, err := shared.LoadConfig[*config.Settings]("settings.yaml")
 	if err != nil {
@@ -55,6 +55,7 @@ func main() {
 
 	kafkaConfig := sarama.NewConfig()
 	kafkaConfig.Version = sarama.V2_8_1_0
+	kafkaConfig.Producer.Partitioner = kafkautil.NewJVMCompatiblePartitioner // Use murmur2 hash.
 	kafkaConfig.Producer.Return.Successes = true
 
 	kafkaClient, err := sarama.NewClient(strings.Split(settings.KafkaServers, ","), kafkaConfig)
@@ -62,7 +63,7 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to create Kafka client.")
 	}
 
-	sprod, err := status.NewKafka(ctx, "topic.transaction.request.status", kafkaClient)
+	sprod, err := status.NewKafka(ctx, settings.TransactionStatusTopic, kafkaClient)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create Kafka transaction status producer.")
 	}
@@ -72,7 +73,7 @@ func main() {
 	manager := manager.New(ethClient, chainID, sender, store, &logger, sprod)
 
 	go func() {
-		consumer.New(ctx, "meta-transaction-processor", "topic.transaction.request.send", kafkaClient, &logger, ethClient, manager)
+		consumer.New(ctx, "meta-transaction-processor", settings.TransactionRequestTopic, kafkaClient, &logger, ethClient, manager)
 	}()
 
 	go func() {

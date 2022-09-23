@@ -2,15 +2,17 @@ module github.com/DIMO-Network/meta-transaction-processor
 
 go 1.19
 
-require github.com/Shopify/sarama v1.36.0
+require (
+	github.com/Shopify/sarama v1.36.0
+	github.com/aws/aws-sdk-go-v2 v1.16.5
+	github.com/aws/aws-sdk-go-v2/service/kms v1.17.3
+)
 
 require (
 	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 // indirect
 	github.com/avast/retry-go/v4 v4.0.3 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.16.5 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.12 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/kms v1.17.3 // indirect
 	github.com/aws/smithy-go v1.11.3 // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/go-ole/go-ole v1.2.1 // indirect

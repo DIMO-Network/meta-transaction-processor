@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/DIMO-Network/meta-transaction-processor/internal/sender"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
 	"github.com/ethereum/go-ethereum"
@@ -24,7 +25,7 @@ type Manager interface {
 	Receipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
 }
 
-func New(client *ethclient.Client, chainID *big.Int, sender Sender, storage storage.Storage, logger *zerolog.Logger, sprod status.Producer) Manager {
+func New(client *ethclient.Client, chainID *big.Int, sender sender.Sender, storage storage.Storage, logger *zerolog.Logger, sprod status.Producer) Manager {
 	return &manager{
 		client:   client,
 		chainID:  chainID,
@@ -37,7 +38,7 @@ func New(client *ethclient.Client, chainID *big.Int, sender Sender, storage stor
 
 type manager struct {
 	chainID  *big.Int
-	sender   Sender
+	sender   sender.Sender
 	client   *ethclient.Client
 	storage  storage.Storage
 	logger   *zerolog.Logger
@@ -85,7 +86,7 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 	tx := types.NewTx(txd)
 
 	sigHash := signer.Hash(tx)
-	sigBytes, err := m.sender.Sign(sigHash)
+	sigBytes, err := m.sender.Sign(ctx, sigHash)
 	if err != nil {
 		return err
 	}

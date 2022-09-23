@@ -11,6 +11,7 @@ import (
 	"github.com/DIMO-Network/meta-transaction-processor/internal/config"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/consumer"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/manager"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/sender"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
 	"github.com/DIMO-Network/shared"
@@ -40,7 +41,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	sender, err := manager.KeyAccount(settings.SenderPrivateKey)
+	sender, err := sender.FromKey(settings.SenderPrivateKey)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Couldn't load private key for sender.")
 	}

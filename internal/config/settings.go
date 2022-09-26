@@ -3,21 +3,21 @@ package config
 type Settings struct {
 	// MonitoringPort is the port on which we run the health check endpoint and
 	// serve Prometheus metrics.
-	MonitoringPort string `json:"MONITORING_PORT"`
+	MonitoringPort string `yaml:"MONITORING_PORT"`
 
 	// KafkaServers is a comma-seperated list of Kafka bootstrap servers.
 	// We typically only specify one.
-	KafkaServers string `json:"KAFKA_SERVERS"`
+	KafkaServers string `yaml:"KAFKA_SERVERS"`
 
 	// ConsumerGroupName is the name of the consumer group.
 
 	// TransactionRequestTopic is the name of the topic from which the service
 	// receives transaction requests.
-	TransactionRequestTopic string `json:"TRANSACTION_REQUEST_TOPIC"`
+	TransactionRequestTopic string `yaml:"TRANSACTION_REQUEST_TOPIC"`
 
 	// TransactionStatusTopic is the name of the topic onto which the service
 	// places updates about requested transactions.
-	TransactionStatusTopic string `json:"TRANSACTION_STATUS_TOPIC"`
+	TransactionStatusTopic string `yaml:"TRANSACTION_STATUS_TOPIC"`
 
 	// EthereumRPCURL is the URL of the JSON-RPC endpoint to use for
 	// blockchain interactions.

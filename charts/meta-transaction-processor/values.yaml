@@ -1,0 +1,97 @@
+replicaCount: 1
+image:
+  repository: dimozone/meta-transaction-processor
+  pullPolicy: IfNotPresent
+  tag: e305aea
+imagePullSecrets: []
+nameOverride: ''
+fullnameOverride: ''
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ''
+podAnnotations: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1001
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - all
+cronJob:
+  enabled: false
+  schedule: 0 0 * * 0
+env:
+  MONITORING_PORT: 8888
+  ETHEREUM_CHAIN_ID: 80001
+  PRIVATE_KEY_MODE: false
+  CONFIRMATION_BLOCKS: 12
+  KAFKA_SERVERS: kafka-dev-dimo-kafka-kafka-brokers:9092
+  TRANSACTION_REQUEST_TOPIC: topic.transaction.request.send
+  TRANSACTION_STATUS_TOPIC: topic.transaction.request.status
+service:
+  type: ClusterIP
+  ports:
+    mon-http:
+      port: 8888
+      targetPort: mon-http
+      protocol: TCP
+ports:
+  - name: mon-http
+    containerPort: 8888
+    protocol: TCP
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/auth-tls-secret: ingress/cf-origin-ca
+    nginx.ingress.kubernetes.io/auth-tls-verify-client: 'on'
+    nginx.ingress.kubernetes.io/enable-cors: 'true'
+    nginx.ingress.kubernetes.io/cors-allow-origin: https://app.dev.dimo.zone
+    nginx.ingress.kubernetes.io/limit-rps: '3'
+    external-dns.alpha.kubernetes.io/hostname: meta-transaction-processor.dev.dimo.zone
+  hosts:
+    - host: meta-transaction-processor.dev.dimo.zone
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+resources:
+  limits:
+    cpu: 250m
+    memory: 384Mi
+  requests:
+    cpu: 100m
+    memory: 192Mi
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podDisruptionBudget:
+  minAvailable: 0
+kafka:
+  clusterName: kafka-dev-dimo-kafka
+  topics:
+    - name: topic.transaction.request.send
+      config:
+        segment.ms: '3600000'
+        compression.type: producer
+        cleanup.policy: delete
+        min.compaction.lag.ms: '3600000'
+    - name: topic.transaction.request.status
+      config:
+        segment.ms: '3600000'
+        compression.type: producer
+        cleanup.policy: delete
+        min.compaction.lag.ms: '3600000'
+serviceMonitor:
+  enabled: true
+  path: /metrics
+  port: mon-http
+  interval: 30s

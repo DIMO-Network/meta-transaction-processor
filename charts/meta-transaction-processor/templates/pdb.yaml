@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ include "meta-transaction-processor.fullname" . }}
+  labels:
+    {{- include "meta-transaction-processor.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+    {{- include "meta-transaction-processor.selectorLabels" . | nindent 6 }}
+{{ toYaml .Values.podDisruptionBudget | indent 2 }}

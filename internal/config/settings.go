@@ -1,6 +1,10 @@
 package config
 
 type Settings struct {
+	// MonitoringPort is the port on which we run the health check endpoint and
+	// serve Prometheus metrics.
+	MonitoringPort string `json:"MONITORING_PORT"`
+
 	// KafkaServers is a comma-seperated list of Kafka bootstrap servers.
 	// We typically only specify one.
 	KafkaServers string `json:"KAFKA_SERVERS"`

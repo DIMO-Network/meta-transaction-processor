@@ -18,6 +18,9 @@ import (
 	"github.com/Shopify/sarama"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/gofiber/adaptor/v2"
+	"github.com/gofiber/fiber/v2"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/burdiyan/kafkautil"
 	"github.com/ethereum/go-ethereum/common"
@@ -52,6 +55,7 @@ func main() {
 		if err != nil {
 			logger.Fatal().Err(err).Msg("Couldn't load private key for sender.")
 		}
+		logger.Info().Str("address", send.Address().Hex()).Msg("Loaded private key account.")
 	} else {
 		awsconf, err := awsconfig.LoadDefaultConfig(ctx)
 		if err != nil {
@@ -62,6 +66,7 @@ func main() {
 		if err != nil {
 			logger.Fatal().Err(err).Msg("Couldn't create KMS signer.")
 		}
+		logger.Info().Str("address", send.Address().Hex()).Str("keyId", settings.KMSKeyID).Msg("Loaded KMS account.")
 	}
 
 	ethClient, err := ethclient.Dial(settings.EthereumRPCURL)
@@ -157,6 +162,8 @@ func main() {
 		}
 	}()
 
+	monApp := serveMonitoring(settings.MonitoringPort, &logger)
+
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, os.Interrupt)
 
@@ -164,5 +171,24 @@ func main() {
 	logger.Info().Str("signal", sig.String()).Msg("Received signal, terminating.")
 
 	cancel()
+	monApp.Shutdown()
 	<-tickerDone
+}
+
+func serveMonitoring(port string, logger *zerolog.Logger) *fiber.App {
+	monApp := fiber.New(fiber.Config{DisableStartupMessage: true})
+
+	// Health check.
+	monApp.Get("/", func(c *fiber.Ctx) error { return nil })
+	monApp.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
+
+	go func() {
+		if err := monApp.Listen(":" + port); err != nil {
+			logger.Fatal().Err(err).Str("port", port).Msg("Failed to start monitoring web server.")
+		}
+	}()
+
+	logger.Info().Str("port", port).Msg("Started monitoring web server.")
+
+	return monApp
 }

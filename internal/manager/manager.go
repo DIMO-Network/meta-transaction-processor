@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"math/big"
+	"sync"
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/sender"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
@@ -37,15 +38,19 @@ func New(client *ethclient.Client, chainID *big.Int, sender sender.Sender, stora
 }
 
 type manager struct {
-	chainID  *big.Int
-	sender   sender.Sender
-	client   *ethclient.Client
-	storage  storage.Storage
-	logger   *zerolog.Logger
-	producer status.Producer
+	chainID    *big.Int
+	sender     sender.Sender
+	client     *ethclient.Client
+	storage    storage.Storage
+	logger     *zerolog.Logger
+	producer   status.Producer
+	nonceMutex sync.Mutex
 }
 
 func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
+	m.nonceMutex.Lock()
+	defer m.nonceMutex.Unlock()
+
 	head, err := m.client.HeaderByNumber(ctx, nil)
 	if err != nil {
 		return err

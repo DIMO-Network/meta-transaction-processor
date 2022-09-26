@@ -38,7 +38,7 @@ type EmitLog struct {
 
 func main() {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Str("app", "meta-transaction-processor").Logger()
-	settings, err := shared.LoadConfig[*config.Settings]("settings.yaml")
+	settings, err := shared.LoadConfig[config.Settings]("settings.yaml")
 	if err != nil {
 		logger.Fatal().Msg("Couldn't load settings.")
 	}

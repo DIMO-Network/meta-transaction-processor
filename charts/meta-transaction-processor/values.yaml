@@ -31,6 +31,7 @@ env:
   KAFKA_SERVERS: kafka-dev-dimo-kafka-kafka-brokers:9092
   TRANSACTION_REQUEST_TOPIC: topic.transaction.request.send
   TRANSACTION_STATUS_TOPIC: topic.transaction.request.status
+  AWS_REGION: us-east-2
 service:
   type: ClusterIP
   ports:

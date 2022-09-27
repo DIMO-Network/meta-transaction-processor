@@ -129,5 +129,5 @@ func FromKMS(ctx context.Context, client *kms.Client, keyID string) (Sender, err
 
 	addr := crypto.PubkeyToAddress(*pub)
 
-	return &kmsSender{keyID: keyID, pub: pubBytes, address: addr}, nil
+	return &kmsSender{keyID: keyID, pub: pubBytes, address: addr, client: client}, nil
 }

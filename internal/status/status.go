@@ -10,10 +10,11 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/rs/zerolog"
 	"github.com/segmentio/ksuid"
 )
 
-type CreatedMsg struct {
+type SubmittedMsg struct {
 	ID    string         `json:"id"`
 	Hash  common.Hash    `json:"hash"`
 	Block *storage.Block `json:"block"`
@@ -46,81 +47,100 @@ type ceLog struct {
 }
 
 type Producer interface {
-	Created(msg *CreatedMsg)
+	Submitted(msg *SubmittedMsg)
 	Mined(msg *MinedMsg)
 	Confirmed(msg *ConfirmedMsg)
 }
 
 type kafkaProducer struct {
-	kp    sarama.SyncProducer
-	topic string
+	kp     sarama.SyncProducer
+	topic  string
+	logger *zerolog.Logger
 }
 
+type ceTx struct {
+	Hash       string  `json:"hash"`
+	Successful *bool   `json:"successful,omitempty"`
+	Logs       []ceLog `json:"logs,omitempty"`
+}
+
+// Just using the same struct for all three event types. Lazy.
 type ceData struct {
-	ID         string   `json:"id"`
-	Hash       string   `json:"hash"`
-	Successful *bool    `json:"successful,omitempty"`
-	Logs       []*ceLog `json:"logs,omitempty"`
+	RequestID   string `json:"requestId"`
+	Type        string `json:"type"`
+	Transaction ceTx   `json:"transaction"`
 }
 
 func (p *kafkaProducer) Confirmed(msg *ConfirmedMsg) {
-	var logs []*ceLog
-	if msg.Successful {
-		logs = make([]*ceLog, 0)
-		for _, l := range msg.Logs {
-			top := make([]string, len(l.Topics))
-			for i, t := range l.Topics {
-				top[i] = t.Hex()
-			}
-			cel := &ceLog{
-				Address: hexutil.Encode(l.Address[:]),
-				Topics:  top,
-				Data:    hexutil.Encode(l.Data),
-			}
-			logs = append(logs, cel)
+	logs := make([]ceLog, len(msg.Logs))
+	for i, l := range msg.Logs {
+		top := make([]string, len(l.Topics))
+		for j, t := range l.Topics {
+			top[j] = t.Hex()
 		}
+
+		logs[i].Address = hexutil.Encode(l.Address[:])
+		logs[i].Topics = top
+		logs[i].Data = hexutil.Encode(l.Data)
 	}
+
 	event := shared.CloudEvent[ceData]{
 		ID:          ksuid.New().String(),
 		Source:      "meta-transaction-processor",
 		Subject:     msg.ID,
 		SpecVersion: "1.0",
 		Time:        time.Now(),
+		Type:        "zone.dimo.transaction.request.event",
 		Data: ceData{
-			ID:         msg.ID,
-			Hash:       msg.Hash.Hex(),
-			Successful: &msg.Successful,
-			Logs:       logs,
+			RequestID: msg.ID,
+			Type:      "Confirmed",
+			Transaction: ceTx{
+				Hash:       msg.Hash.Hex(),
+				Successful: &msg.Successful,
+				Logs:       logs,
+			},
 		},
 	}
 
 	bs, err := json.Marshal(event)
 	if err != nil {
-		panic(err)
+		p.logger.Err(err).Msg("Couldn't marshal confirmed message.")
+		return
 	}
 
-	p.kp.SendMessage(&sarama.ProducerMessage{
-		Topic: p.topic,
-		Value: sarama.ByteEncoder(bs),
-	})
+	p.logger.Info().Interface("event", event).Msg("Emitting event.")
+
+	p.kp.SendMessage(
+		&sarama.ProducerMessage{
+			Topic: p.topic,
+			Value: sarama.ByteEncoder(bs),
+		},
+	)
 }
 
-func (p *kafkaProducer) Created(msg *CreatedMsg) {
+func (p *kafkaProducer) Submitted(msg *SubmittedMsg) {
 	event := shared.CloudEvent[ceData]{
 		ID:          ksuid.New().String(),
 		Source:      "meta-transaction-processor",
 		Subject:     msg.ID,
 		SpecVersion: "1.0",
 		Time:        time.Now(),
+		Type:        "zone.dimo.transaction.request.event",
 		Data: ceData{
-			ID:   msg.ID,
-			Hash: msg.Hash.Hex(),
+			RequestID: msg.ID,
+			Type:      "Submitted",
+			Transaction: ceTx{
+				Hash: msg.Hash.Hex(),
+			},
 		},
 	}
 
+	p.logger.Info().Interface("event", event).Msg("Emitting event.")
+
 	bs, err := json.Marshal(event)
 	if err != nil {
-		panic(err)
+		p.logger.Err(err).Msg("Couldn't marshal sent message.")
+		return
 	}
 
 	p.kp.SendMessage(&sarama.ProducerMessage{
@@ -136,21 +156,30 @@ func (p *kafkaProducer) Mined(msg *MinedMsg) {
 		Subject:     msg.ID,
 		SpecVersion: "1.0",
 		Time:        time.Now(),
+		Type:        "zone.dimo.transaction.request.event",
 		Data: ceData{
-			ID:   msg.ID,
-			Hash: msg.Hash.Hex(),
+			RequestID: msg.ID,
+			Type:      "Mined",
+			Transaction: ceTx{
+				Hash: msg.Hash.Hex(),
+			},
 		},
 	}
 
+	p.logger.Info().Interface("event", event).Msg("Emitting event.")
+
 	bs, err := json.Marshal(event)
 	if err != nil {
-		panic(err)
+		p.logger.Err(err).Msg("Couldn't marshal mined message.")
+		return
 	}
 
-	p.kp.SendMessage(&sarama.ProducerMessage{
-		Topic: p.topic,
-		Value: sarama.ByteEncoder(bs),
-	})
+	p.kp.SendMessage(
+		&sarama.ProducerMessage{
+			Topic: p.topic,
+			Value: sarama.ByteEncoder(bs),
+		},
+	)
 }
 
 func NewKafka(ctx context.Context, topic string, client sarama.Client) (Producer, error) {

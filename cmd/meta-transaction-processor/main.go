@@ -86,7 +86,7 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to create Kafka client.")
 	}
 
-	sprod, err := status.NewKafka(ctx, settings.TransactionStatusTopic, kafkaClient)
+	sprod, err := status.NewKafka(ctx, settings.TransactionStatusTopic, kafkaClient, &logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create Kafka transaction status producer.")
 	}

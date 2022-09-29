@@ -182,11 +182,11 @@ func (p *kafkaProducer) Mined(msg *MinedMsg) {
 	)
 }
 
-func NewKafka(ctx context.Context, topic string, client sarama.Client) (Producer, error) {
+func NewKafka(ctx context.Context, topic string, client sarama.Client, logger *zerolog.Logger) (Producer, error) {
 	kp, err := sarama.NewSyncProducerFromClient(client)
 	if err != nil {
 		return nil, err
 	}
 
-	return &kafkaProducer{kp: kp, topic: topic}, nil
+	return &kafkaProducer{kp: kp, topic: topic, logger: logger}, nil
 }

@@ -27,7 +27,7 @@ env:
   MONITORING_PORT: 8888
   ETHEREUM_CHAIN_ID: 80001
   PRIVATE_KEY_MODE: false
-  CONFIRMATION_BLOCKS: 12
+  CONFIRMATION_BLOCKS: 6
   KAFKA_SERVERS: kafka-dev-dimo-kafka-kafka-brokers:9092
   TRANSACTION_REQUEST_TOPIC: topic.transaction.request.send
   TRANSACTION_STATUS_TOPIC: topic.transaction.request.status

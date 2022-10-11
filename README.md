@@ -1,5 +1,7 @@
 # Meta-transaction processor
 
+## Usage
+
 Send a CloudEvent with `data` field
 ```json
 {
@@ -40,3 +42,7 @@ Here `type` is one of `Submitted`, `Mined`, `Confirmed`. For confirmed transacti
     }
 }
 ```
+
+## Configuration
+
+The [default settings file](settings.sample.yaml) has reasonable defaults for local development. It assumes you are using the [Hardhat node](https://hardhat.org/hardhat-runner/docs/getting-started#connecting-a-wallet-or-dapp-to-hardhat-network) and has `PRIVATE_KEY_MODE` set to true, which should never be done in production.

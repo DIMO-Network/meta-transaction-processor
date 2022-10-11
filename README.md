@@ -1,7 +1,7 @@
 # Meta-transaction processor
 
 Send a CloudEvent with `data` field
-```
+```json
 {
     "requestId": "2FowjlIXxjSsbGbtwcDbA1gRdXt",
     "to": "0x662f3314e5bb2ea8a9c18c80c93e064fdadf18b1",
@@ -10,7 +10,7 @@ Send a CloudEvent with `data` field
 ```
 
 On the status topic you'll get messages like
-```
+```json
 {
     "requestId": "2FowjlIXxjSsbGbtwcDbA1gRdXt",
     "type": "Submitted"
@@ -19,4 +19,20 @@ On the status topic you'll get messages like
     }
 }
 ```
-Here `type` is one of `Submitted`, `Mined`, `Confirmed`. For confirmed, the `transaction` sub-object will have two additional fields. 
+Here `type` is one of `Submitted`, `Mined`, `Confirmed`. For confirmed transactions, the `transaction` sub-object will have two additional fields: 
+```json
+{
+    "requestId": "2FowjlIXxjSsbGbtwcDbA1gRdXt",
+    "type": "Confirmed"
+    "transaction": {
+        "hash": "0x9273c7b49ffed60592206509e6911ce21be6bf6353a49617a73ff2c01075c4b9",
+        "successful": true,
+        "logs": [
+            {
+                "address": "0x662f3314e5bb2ea8a9c18c80c93e064fdadf18b1",
+                "topics": ["0x3d0ce9bfc3ed7d6862dbb28b2dea94561fe714a1b4d019aa8af39730d1ad7c3d", "0x000000000000000000000000f2e391f11cd1609679d03a1ac965b1d0432a7007"]},
+                "data": "0x00000000000000000000000000000000000000000000000003dc2544280ba2b5"
+        ]
+    }
+}
+```

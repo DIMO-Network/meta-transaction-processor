@@ -30,8 +30,12 @@ Here `type` is one of `Submitted`, `Mined`, `Confirmed`. For confirmed transacti
         "logs": [
             {
                 "address": "0x662f3314e5bb2ea8a9c18c80c93e064fdadf18b1",
-                "topics": ["0x3d0ce9bfc3ed7d6862dbb28b2dea94561fe714a1b4d019aa8af39730d1ad7c3d", "0x000000000000000000000000f2e391f11cd1609679d03a1ac965b1d0432a7007"]},
+                "topics": [
+                    "0x3d0ce9bfc3ed7d6862dbb28b2dea94561fe714a1b4d019aa8af39730d1ad7c3d",
+                    "0x000000000000000000000000f2e391f11cd1609679d03a1ac965b1d0432a7007"
+                ],
                 "data": "0x00000000000000000000000000000000000000000000000003dc2544280ba2b5"
+            }
         ]
     }
 }

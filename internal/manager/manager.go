@@ -106,15 +106,10 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 		To:   req.To,
 		Data: req.Data,
 
-		Nonce:    nonce,
-		GasPrice: gasPrice,
-		Hash:     txHash,
+		Nonce: nonce,
+		Hash:  txHash,
 
-		CreationBlock: &storage.Block{
-			Number:    head.Number,
-			Hash:      head.Hash(),
-			Timestamp: head.Time,
-		},
+		CreationBlockNumber: head.Number,
 	}
 
 	m.logger.Info().Str("id", req.ID).Str("hash", txHash.String()).Msg("Sending transaction.")
@@ -130,9 +125,8 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 	}
 
 	m.producer.Submitted(&status.SubmittedMsg{
-		ID:    req.ID,
-		Hash:  txHash,
-		Block: store.CreationBlock,
+		ID:   req.ID,
+		Hash: txHash,
 	})
 
 	return nil

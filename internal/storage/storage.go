@@ -11,7 +11,7 @@ import (
 type Storage interface {
 	New(tx *Transaction) error
 	List() ([]*Transaction, error)
-	SetTxMined(id string, block *Block) error
+	SetTxMined(id string, block *big.Int) error
 	Remove(id string) error
 }
 
@@ -27,12 +27,11 @@ type Transaction struct {
 	To   common.Address
 	Data []byte
 
-	Nonce    uint64
-	GasPrice *big.Int
-	Hash     common.Hash
+	Nonce uint64
+	Hash  common.Hash
 
-	CreationBlock *Block
-	MinedBlock    *Block
+	CreationBlockNumber *big.Int
+	MinedBlockNumber    *big.Int
 }
 
 type memStorage struct {
@@ -51,9 +50,9 @@ func (s *memStorage) List() ([]*Transaction, error) {
 	return maps.Values(s.storage), nil
 }
 
-func (s *memStorage) SetTxMined(id string, block *Block) error {
+func (s *memStorage) SetTxMined(id string, blockNumber *big.Int) error {
 	s.Lock()
-	s.storage[id].MinedBlock = block
+	s.storage[id].MinedBlockNumber = blockNumber
 	s.Unlock()
 	return nil
 }

@@ -118,7 +118,7 @@ func main() {
 				txes, _ := store.List()
 				for _, tx := range txes {
 					logger := logger.With().Str("id", tx.ID).Str("hash", tx.Hash.Hex()).Logger()
-					if tx.MinedBlock == nil || new(big.Int).Sub(headNumber, tx.MinedBlock.Number).Cmp(confirmationBlocks) >= 0 {
+					if tx.MinedBlockNumber == nil || new(big.Int).Sub(headNumber, tx.MinedBlockNumber).Cmp(confirmationBlocks) >= 0 {
 						rec, err := manager.Receipt(ctx, tx.Hash)
 						if err != nil {
 							logger.Err(err).Msg("Failed to get receipt.")
@@ -129,15 +129,10 @@ func main() {
 						if err != nil {
 							continue
 						}
-						minedBlockStore := &storage.Block{
-							Number:    minedBlock.Number(),
-							Hash:      minedBlock.Hash(),
-							Timestamp: minedBlock.Time(),
-						}
-						if tx.MinedBlock == nil {
+						if tx.MinedBlockNumber == nil {
 							logger.Info().Msg("Transaction mined.")
-							store.SetTxMined(tx.ID, minedBlockStore)
-							sprod.Mined(&status.MinedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlockStore})
+							store.SetTxMined(tx.ID, minedBlock.Number())
+							sprod.Mined(&status.MinedMsg{ID: tx.ID, Hash: tx.Hash})
 						} else {
 							logger.Info().Msg("Transaction confirmed.")
 							for _, l := range rec.Logs {
@@ -147,7 +142,7 @@ func main() {
 							for _, log := range rec.Logs {
 								logs = append(logs, &status.Log{Address: log.Address, Topics: log.Topics, Data: log.Data})
 							}
-							sprod.Confirmed(&status.ConfirmedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlockStore, Successful: rec.Status == 1, Logs: logs})
+							sprod.Confirmed(&status.ConfirmedMsg{ID: tx.ID, Hash: tx.Hash, Successful: rec.Status == 1, Logs: logs})
 							err := store.Remove(tx.ID)
 							if err != nil {
 								logger.Err(err).Msg("Failed to remove transaction from store.")

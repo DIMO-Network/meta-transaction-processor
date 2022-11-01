@@ -11,7 +11,9 @@ import (
 	"github.com/DIMO-Network/meta-transaction-processor/internal/config"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/consumer"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/manager"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/poller"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/sender"
+
 	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
 	"github.com/DIMO-Network/shared"
@@ -28,8 +30,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var confirmationBlocks = big.NewInt(12)
-
 type EmitLog struct {
 	Address common.Address
 	Topics  []common.Hash
@@ -43,7 +43,12 @@ func main() {
 		logger.Fatal().Msg("Couldn't load settings.")
 	}
 
-	logger.Info().Int("chainId", settings.EthereumChainID).Msg("Loaded settings.")
+	logger.Info().
+		Int("chainId", settings.EthereumChainID).
+		Int64("confirmationBlocks", settings.ConfirmationBlocks).
+		Str("transactionRequestTopic", settings.TransactionRequestTopic).
+		Str("transactionStatusTopic", settings.TransactionStatusTopic).
+		Msg("Loaded settings.")
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -101,60 +106,17 @@ func main() {
 
 	tickerDone := make(chan struct{})
 
+	confirmationBlocks := big.NewInt(settings.ConfirmationBlocks)
+
+	poll := poller.NewPoller(store, &logger, ethClient, confirmationBlocks, manager, sprod)
+
 	go func() {
 		defer close(tickerDone)
 		ticker := time.NewTicker(10 * time.Second)
 		for {
 			select {
 			case <-ticker.C:
-				head, err := ethClient.HeaderByNumber(ctx, nil)
-				if err != nil {
-					logger.Err(err).Msg("Failed to get block.")
-					continue
-				}
-
-				headNumber := head.Number
-
-				txes, _ := store.List()
-				for _, tx := range txes {
-					logger := logger.With().Str("id", tx.ID).Str("hash", tx.Hash.Hex()).Logger()
-					if tx.MinedBlock == nil || new(big.Int).Sub(headNumber, tx.MinedBlock.Number).Cmp(confirmationBlocks) >= 0 {
-						rec, err := manager.Receipt(ctx, tx.Hash)
-						if err != nil {
-							logger.Err(err).Msg("Failed to get receipt.")
-							continue
-						}
-
-						minedBlock, err := ethClient.BlockByHash(ctx, rec.BlockHash)
-						if err != nil {
-							continue
-						}
-						minedBlockStore := &storage.Block{
-							Number:    minedBlock.Number(),
-							Hash:      minedBlock.Hash(),
-							Timestamp: minedBlock.Time(),
-						}
-						if tx.MinedBlock == nil {
-							logger.Info().Msg("Transaction mined.")
-							store.SetTxMined(tx.ID, minedBlockStore)
-							sprod.Mined(&status.MinedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlockStore})
-						} else {
-							logger.Info().Msg("Transaction confirmed.")
-							for _, l := range rec.Logs {
-								logger.Info().Interface("log", l).Msg("Logged.")
-							}
-							logs := []*status.Log{}
-							for _, log := range rec.Logs {
-								logs = append(logs, &status.Log{Address: log.Address, Topics: log.Topics, Data: log.Data})
-							}
-							sprod.Confirmed(&status.ConfirmedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlockStore, Successful: rec.Status == 1, Logs: logs})
-							err := store.Remove(tx.ID)
-							if err != nil {
-								logger.Err(err).Msg("Failed to remove transaction from store.")
-							}
-						}
-					}
-				}
+				poll.Poll(ctx)
 			case <-ctx.Done():
 				ticker.Stop()
 				return

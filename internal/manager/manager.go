@@ -16,9 +16,11 @@ import (
 )
 
 type TransactionRequest struct {
-	ID   string
-	To   common.Address
-	Data []byte
+	ID       string
+	To       common.Address
+	Data     []byte
+	GasPrice *big.Int
+	Nonce    uint64
 }
 
 type Manager interface {
@@ -63,9 +65,13 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 
 	signer := types.LatestSignerForChainID(m.chainID)
 
-	gasPrice, err := m.client.SuggestGasPrice(ctx)
-	if err != nil {
-		return err
+	gasPrice := req.GasPrice
+
+	if gasPrice == nil {
+		gasPrice, err = m.client.SuggestGasPrice(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
 	callMsg := ethereum.CallMsg{
@@ -111,9 +117,8 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 		Hash:     txHash,
 
 		CreationBlock: &storage.Block{
-			Number:    head.Number,
-			Hash:      head.Hash(),
-			Timestamp: head.Time,
+			Number: head.Number,
+			Hash:   head.Hash(),
 		},
 	}
 
@@ -130,9 +135,8 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 	}
 
 	m.producer.Submitted(&status.SubmittedMsg{
-		ID:    req.ID,
-		Hash:  txHash,
-		Block: store.CreationBlock,
+		ID:   req.ID,
+		Hash: txHash,
 	})
 
 	return nil

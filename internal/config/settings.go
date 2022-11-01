@@ -41,5 +41,5 @@ type Settings struct {
 
 	// ConfirmationBlocks is the number of blocks needed to consider a
 	// transaction confirmed.
-	ConfirmationBlocks int `yaml:"CONFIRMATION_BLOCKS"`
+	ConfirmationBlocks int64 `yaml:"CONFIRMATION_BLOCKS"`
 }

@@ -6,19 +6,21 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 type Storage interface {
+	// New stores a newly created and submitted transaction.
 	New(tx *Transaction) error
+	// List returns the list of unconfirmed transactions, in order of ascending nonce.
 	List() ([]*Transaction, error)
 	SetTxMined(id string, block *Block) error
 	Remove(id string) error
 }
 
 type Block struct {
-	Number    *big.Int
-	Hash      common.Hash
-	Timestamp uint64
+	Number *big.Int
+	Hash   common.Hash
 }
 
 type Transaction struct {
@@ -48,7 +50,13 @@ func (s *memStorage) New(tx *Transaction) error {
 }
 
 func (s *memStorage) List() ([]*Transaction, error) {
-	return maps.Values(s.storage), nil
+	s.Lock()
+	vals := maps.Values(s.storage)
+	slices.SortFunc(vals, func(a, b *Transaction) bool {
+		return a.Nonce < b.Nonce
+	})
+	s.Unlock()
+	return vals, nil
 }
 
 func (s *memStorage) SetTxMined(id string, block *Block) error {

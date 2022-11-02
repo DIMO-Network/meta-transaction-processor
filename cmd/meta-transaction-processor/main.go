@@ -28,7 +28,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var confirmationBlocks = big.NewInt(12)
+var confirmationBlocks = big.NewInt(3)
 
 type EmitLog struct {
 	Address common.Address

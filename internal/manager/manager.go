@@ -102,7 +102,7 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 	}
 	txHash := signedTx.Hash()
 
-	store := &storage.Transaction{
+	storeTx := &storage.Transaction{
 		ID:   req.ID,
 		To:   req.To,
 		Data: req.Data,
@@ -117,9 +117,9 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 		},
 	}
 
-	m.logger.Info().Str("id", req.ID).Str("hash", txHash.String()).Msg("Sending transaction.")
+	m.logger.Info().Str("id", req.ID).Interface("tx", storeTx).Msg("Sending transaction.")
 
-	err = m.storage.New(store)
+	err = m.storage.New(storeTx)
 	if err != nil {
 		return err
 	}

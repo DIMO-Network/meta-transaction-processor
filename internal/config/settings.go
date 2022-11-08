@@ -1,5 +1,9 @@
 package config
 
+import (
+	"github.com/DIMO-Network/shared/db"
+)
+
 type Settings struct {
 	// MonitoringPort is the port on which we run the health check endpoint and
 	// serve Prometheus metrics.
@@ -42,4 +46,8 @@ type Settings struct {
 	// ConfirmationBlocks is the number of blocks needed to consider a
 	// transaction confirmed.
 	ConfirmationBlocks int64 `yaml:"CONFIRMATION_BLOCKS"`
+
+	InMemoryDB bool `yaml:"IN_MEMORY_DB"`
+
+	DB db.Settings `yaml:"DB"`
 }

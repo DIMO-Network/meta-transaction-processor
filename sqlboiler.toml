@@ -1,0 +1,12 @@
+output = "internal/models"
+no-tests = true
+
+[psql]  
+dbname = "meta_transaction_processor"
+blacklist = ["migrations"]
+host   = "localhost"
+port   = 5432
+user   = "dimo"
+pass   = "dimo"
+schema = "meta_transaction_processor"
+sslmode= "disable"

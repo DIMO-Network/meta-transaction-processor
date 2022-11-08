@@ -16,6 +16,7 @@ import (
 	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/ticker"
 	"github.com/DIMO-Network/shared"
+	"github.com/DIMO-Network/shared/db"
 	"github.com/Shopify/sarama"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
@@ -40,7 +41,32 @@ func main() {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Str("app", "meta-transaction-processor").Logger()
 	settings, err := shared.LoadConfig[config.Settings]("settings.yaml")
 	if err != nil {
-		logger.Fatal().Msg("Couldn't load settings.")
+		logger.Fatal().Err(err).Msg("Couldn't load settings.")
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		command := "up"
+		if len(os.Args) > 2 {
+			command = os.Args[2]
+			if command == "down-to" || command == "up-to" {
+				command = command + " " + os.Args[3]
+			}
+		}
+		migrateDatabase(logger, &settings, command)
+		return
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var store storage.Storage
+
+	if settings.InMemoryDB {
+		store = storage.NewMemStorage()
+	} else {
+		pdb := db.NewDbConnectionFromSettings(ctx, &settings.DB, true)
+		pdb.WaitForDB(logger)
+
+		store = storage.NewPGStorage(pdb.DBS)
 	}
 
 	logger.Info().
@@ -48,8 +74,6 @@ func main() {
 		Int64("confirmationBlocks", settings.ConfirmationBlocks).Msg("Loaded settings.")
 
 	confirmationBlocks := big.NewInt(settings.ConfirmationBlocks)
-
-	ctx, cancel := context.WithCancel(context.Background())
 
 	send, err := createSender(ctx, &settings, &logger)
 	if err != nil {
@@ -60,8 +84,6 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create Ethereum client.")
 	}
-
-	store := storage.NewMemStorage()
 
 	kafkaClient, err := createKafka(&settings)
 	if err != nil {

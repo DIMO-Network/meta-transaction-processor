@@ -24,6 +24,7 @@ type TransactionRequest struct {
 type Manager interface {
 	SendTx(ctx context.Context, req *TransactionRequest) error
 	Receipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+	Head(ctx context.Context) (*types.Header, error)
 }
 
 func New(client *ethclient.Client, chainID *big.Int, sender sender.Sender, storage storage.Storage, logger *zerolog.Logger, sprod status.Producer) Manager {
@@ -111,9 +112,8 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 		Hash:     txHash,
 
 		CreationBlock: &storage.Block{
-			Number:    head.Number,
-			Hash:      head.Hash(),
-			Timestamp: head.Time,
+			Number: head.Number,
+			Hash:   head.Hash(),
 		},
 	}
 
@@ -130,9 +130,8 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 	}
 
 	m.producer.Submitted(&status.SubmittedMsg{
-		ID:    req.ID,
-		Hash:  txHash,
-		Block: store.CreationBlock,
+		ID:   req.ID,
+		Hash: txHash,
 	})
 
 	return nil
@@ -140,4 +139,8 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 
 func (m *manager) Receipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	return m.client.TransactionReceipt(ctx, txHash)
+}
+
+func (m *manager) Head(ctx context.Context) (*types.Header, error) {
+	return m.client.HeaderByNumber(ctx, nil)
 }

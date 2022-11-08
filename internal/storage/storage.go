@@ -16,9 +16,8 @@ type Storage interface {
 }
 
 type Block struct {
-	Number    *big.Int
-	Hash      common.Hash
-	Timestamp uint64
+	Number *big.Int
+	Hash   common.Hash
 }
 
 type Transaction struct {
@@ -48,7 +47,10 @@ func (s *memStorage) New(tx *Transaction) error {
 }
 
 func (s *memStorage) List() ([]*Transaction, error) {
-	return maps.Values(s.storage), nil
+	s.Lock()
+	vals := maps.Values(s.storage)
+	s.Unlock()
+	return vals, nil
 }
 
 func (s *memStorage) SetTxMined(id string, block *Block) error {

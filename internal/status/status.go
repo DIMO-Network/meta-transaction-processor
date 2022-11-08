@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
 	"github.com/DIMO-Network/shared"
 	"github.com/Shopify/sarama"
 	"github.com/ethereum/go-ethereum/common"
@@ -15,21 +14,18 @@ import (
 )
 
 type SubmittedMsg struct {
-	ID    string         `json:"id"`
-	Hash  common.Hash    `json:"hash"`
-	Block *storage.Block `json:"block"`
+	ID   string      `json:"id"`
+	Hash common.Hash `json:"hash"`
 }
 
 type MinedMsg struct {
-	ID    string
-	Hash  common.Hash
-	Block *storage.Block
+	ID   string
+	Hash common.Hash
 }
 
 type ConfirmedMsg struct {
 	ID         string
 	Hash       common.Hash
-	Block      *storage.Block
 	Logs       []*Log
 	Successful bool
 }

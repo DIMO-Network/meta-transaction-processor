@@ -110,9 +110,8 @@ func main() {
 							continue
 						}
 						minedBlockStore := &storage.Block{
-							Number:    minedBlock.Number(),
-							Hash:      minedBlock.Hash(),
-							Timestamp: minedBlock.Time(),
+							Number: minedBlock.Number(),
+							Hash:   minedBlock.Hash(),
 						}
 						if tx.MinedBlock == nil {
 							logger.Info().Msg("Transaction mined.")

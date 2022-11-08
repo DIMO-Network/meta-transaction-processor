@@ -111,9 +111,8 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 		Hash:     txHash,
 
 		CreationBlock: &storage.Block{
-			Number:    head.Number,
-			Hash:      head.Hash(),
-			Timestamp: head.Time,
+			Number: head.Number,
+			Hash:   head.Hash(),
 		},
 	}
 

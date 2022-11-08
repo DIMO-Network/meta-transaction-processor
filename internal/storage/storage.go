@@ -16,9 +16,8 @@ type Storage interface {
 }
 
 type Block struct {
-	Number    *big.Int
-	Hash      common.Hash
-	Timestamp uint64
+	Number *big.Int
+	Hash   common.Hash
 }
 
 type Transaction struct {

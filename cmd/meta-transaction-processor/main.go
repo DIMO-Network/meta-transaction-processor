@@ -49,26 +49,9 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	var send sender.Sender
-
-	if settings.PrivateKeyMode {
-		logger.Warn().Msg("Using injected private key. Never do this in production.")
-		send, err = sender.FromKey(settings.SenderPrivateKey)
-		if err != nil {
-			logger.Fatal().Err(err).Msg("Couldn't load private key for sender.")
-		}
-		logger.Info().Str("address", send.Address().Hex()).Msg("Loaded private key account.")
-	} else {
-		awsconf, err := awsconfig.LoadDefaultConfig(ctx)
-		if err != nil {
-			logger.Fatal().Err(err).Msg("Failed to load AWS configuration.")
-		}
-		kmsc := kms.NewFromConfig(awsconf)
-		send, err = sender.FromKMS(ctx, kmsc, settings.KMSKeyID)
-		if err != nil {
-			logger.Fatal().Err(err).Msg("Couldn't create KMS signer.")
-		}
-		logger.Info().Str("address", send.Address().Hex()).Str("keyId", settings.KMSKeyID).Msg("Loaded KMS account.")
+	send, err := createSender(ctx, &settings, &logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to create sender.")
 	}
 
 	ethClient, err := ethclient.Dial(settings.EthereumRPCURL)
@@ -78,12 +61,7 @@ func main() {
 
 	store := storage.NewMemStorage()
 
-	kafkaConfig := sarama.NewConfig()
-	kafkaConfig.Version = sarama.V2_8_1_0
-	kafkaConfig.Producer.Partitioner = kafkautil.NewJVMCompatiblePartitioner // Use murmur2 hash.
-	kafkaConfig.Producer.Return.Successes = true
-
-	kafkaClient, err := sarama.NewClient(strings.Split(settings.KafkaServers, ","), kafkaConfig)
+	kafkaClient, err := createKafka(&settings)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create Kafka client.")
 	}
@@ -175,6 +153,39 @@ func main() {
 	cancel()
 	monApp.Shutdown()
 	<-tickerDone
+}
+
+func createSender(ctx context.Context, settings *config.Settings, logger *zerolog.Logger) (sender.Sender, error) {
+	if settings.PrivateKeyMode {
+		logger.Warn().Msg("Using injected private key. Never do this in production.")
+		send, err := sender.FromKey(settings.SenderPrivateKey)
+		if err != nil {
+			return nil, err
+		}
+		logger.Info().Str("address", send.Address().Hex()).Msg("Loaded private key account.")
+		return send, nil
+	} else {
+		awsconf, err := awsconfig.LoadDefaultConfig(ctx)
+		if err != nil {
+			return nil, err
+		}
+		kmsc := kms.NewFromConfig(awsconf)
+		send, err := sender.FromKMS(ctx, kmsc, settings.KMSKeyID)
+		if err != nil {
+			return nil, err
+		}
+		logger.Info().Str("address", send.Address().Hex()).Str("keyId", settings.KMSKeyID).Msg("Loaded KMS account.")
+		return send, nil
+	}
+}
+
+func createKafka(settings *config.Settings) (sarama.Client, error) {
+	kafkaConfig := sarama.NewConfig()
+	kafkaConfig.Version = sarama.V2_8_1_0                                    // Version from production.
+	kafkaConfig.Producer.Partitioner = kafkautil.NewJVMCompatiblePartitioner // Use the murmur2 hash from the official client.
+	kafkaConfig.Producer.Return.Successes = true
+
+	return sarama.NewClient(strings.Split(settings.KafkaServers, ","), kafkaConfig)
 }
 
 func serveMonitoring(port string, logger *zerolog.Logger) *fiber.App {

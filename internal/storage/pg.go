@@ -25,6 +25,7 @@ func (s *dbStorage) New(tx *Transaction) error {
 	mtr := models.MetaTransactionRequest{
 		ID:                   tx.ID,
 		Nonce:                types.NewDecimal(new(decimal.Big).SetUint64(tx.Nonce)),
+		GasPrice:             types.NewDecimal(new(decimal.Big).SetBigMantScale(tx.GasPrice, 0)),
 		To:                   tx.To[:],
 		Data:                 tx.Data,
 		Hash:                 tx.Hash[:],
@@ -71,7 +72,7 @@ func modelToTx(mod *models.MetaTransactionRequest) *Transaction {
 		Data: mod.Data,
 
 		Nonce:    nonce,
-		GasPrice: nil,
+		GasPrice: mod.GasPrice.Int(nil),
 		Hash:     common.BytesToHash(mod.Hash),
 
 		SubmittedBlock: &Block{

@@ -27,6 +27,7 @@ import (
 type MetaTransactionRequest struct {
 	ID                   string            `boil:"id" json:"id" toml:"id" yaml:"id"`
 	Nonce                types.Decimal     `boil:"nonce" json:"nonce" toml:"nonce" yaml:"nonce"`
+	GasPrice             types.Decimal     `boil:"gas_price" json:"gas_price" toml:"gas_price" yaml:"gas_price"`
 	To                   []byte            `boil:"to" json:"to" toml:"to" yaml:"to"`
 	Data                 []byte            `boil:"data" json:"data" toml:"data" yaml:"data"`
 	Hash                 []byte            `boil:"hash" json:"hash" toml:"hash" yaml:"hash"`
@@ -44,6 +45,7 @@ type MetaTransactionRequest struct {
 var MetaTransactionRequestColumns = struct {
 	ID                   string
 	Nonce                string
+	GasPrice             string
 	To                   string
 	Data                 string
 	Hash                 string
@@ -56,6 +58,7 @@ var MetaTransactionRequestColumns = struct {
 }{
 	ID:                   "id",
 	Nonce:                "nonce",
+	GasPrice:             "gas_price",
 	To:                   "to",
 	Data:                 "data",
 	Hash:                 "hash",
@@ -70,6 +73,7 @@ var MetaTransactionRequestColumns = struct {
 var MetaTransactionRequestTableColumns = struct {
 	ID                   string
 	Nonce                string
+	GasPrice             string
 	To                   string
 	Data                 string
 	Hash                 string
@@ -82,6 +86,7 @@ var MetaTransactionRequestTableColumns = struct {
 }{
 	ID:                   "meta_transaction_requests.id",
 	Nonce:                "meta_transaction_requests.nonce",
+	GasPrice:             "meta_transaction_requests.gas_price",
 	To:                   "meta_transaction_requests.to",
 	Data:                 "meta_transaction_requests.data",
 	Hash:                 "meta_transaction_requests.hash",
@@ -222,6 +227,7 @@ func (w whereHelpertime_Time) GTE(x time.Time) qm.QueryMod {
 var MetaTransactionRequestWhere = struct {
 	ID                   whereHelperstring
 	Nonce                whereHelpertypes_Decimal
+	GasPrice             whereHelpertypes_Decimal
 	To                   whereHelper__byte
 	Data                 whereHelper__byte
 	Hash                 whereHelper__byte
@@ -234,6 +240,7 @@ var MetaTransactionRequestWhere = struct {
 }{
 	ID:                   whereHelperstring{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"id\""},
 	Nonce:                whereHelpertypes_Decimal{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"nonce\""},
+	GasPrice:             whereHelpertypes_Decimal{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"gas_price\""},
 	To:                   whereHelper__byte{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"to\""},
 	Data:                 whereHelper__byte{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"data\""},
 	Hash:                 whereHelper__byte{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"hash\""},
@@ -262,8 +269,8 @@ func (*metaTransactionRequestR) NewStruct() *metaTransactionRequestR {
 type metaTransactionRequestL struct{}
 
 var (
-	metaTransactionRequestAllColumns            = []string{"id", "nonce", "to", "data", "hash", "submitted_block_number", "submitted_block_hash", "mined_block_number", "mined_block_hash", "created_at", "updated_at"}
-	metaTransactionRequestColumnsWithoutDefault = []string{"id", "nonce", "to", "data", "hash", "submitted_block_number", "submitted_block_hash"}
+	metaTransactionRequestAllColumns            = []string{"id", "nonce", "gas_price", "to", "data", "hash", "submitted_block_number", "submitted_block_hash", "mined_block_number", "mined_block_hash", "created_at", "updated_at"}
+	metaTransactionRequestColumnsWithoutDefault = []string{"id", "nonce", "gas_price", "to", "data", "hash", "submitted_block_number", "submitted_block_hash"}
 	metaTransactionRequestColumnsWithDefault    = []string{"mined_block_number", "mined_block_hash", "created_at", "updated_at"}
 	metaTransactionRequestPrimaryKeyColumns     = []string{"id"}
 	metaTransactionRequestGeneratedColumns      = []string{}

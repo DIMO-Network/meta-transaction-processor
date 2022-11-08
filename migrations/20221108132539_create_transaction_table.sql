@@ -6,6 +6,7 @@ CREATE TABLE meta_transaction_requests(
     id char(27)
         CONSTRAINT meta_transaction_requests_id_pkey PRIMARY KEY,
     nonce numeric(20) NOT NULL,
+    gas_price numeric(78) NOT NULL,
     "to" bytea NOT NULL
         CONSTRAINT meta_transaction_requests_to_check CHECK (length("to") = 20),
     data bytea NOT NULL,

@@ -32,6 +32,10 @@ env:
   TRANSACTION_REQUEST_TOPIC: topic.transaction.request.send
   TRANSACTION_STATUS_TOPIC: topic.transaction.request.status
   AWS_REGION: us-east-2
+  DB_MAX_OPEN_CONNECTIONS: 10
+  DB_MAX_IDLE_CONNECTIONS: 10
+  DB_PORT: '5432'
+  DB_NAME: meta_transaction_processor
 service:
   type: ClusterIP
   ports:

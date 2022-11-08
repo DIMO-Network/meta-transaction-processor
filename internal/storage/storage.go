@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 type Storage interface {
@@ -49,6 +50,11 @@ func (s *memStorage) New(tx *Transaction) error {
 func (s *memStorage) List() ([]*Transaction, error) {
 	s.Lock()
 	vals := maps.Values(s.storage)
+
+	slices.SortFunc(vals, func(a, b *Transaction) bool {
+		return a.Nonce < b.Nonce
+	})
+
 	s.Unlock()
 	return vals, nil
 }

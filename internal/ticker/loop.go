@@ -2,64 +2,95 @@ package ticker
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"math/big"
 
+	"github.com/DIMO-Network/meta-transaction-processor/internal/manager"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
+
 	"github.com/rs/zerolog"
 )
 
-type ticker struct {
-	store  storage.Storage
-	logger *zerolog.Logger
-	eth    ethclient.Client
+type Watcher struct {
+	logger             *zerolog.Logger
+	store              storage.Storage
+	confirmationBlocks *big.Int
+	manager            manager.Manager
+	prod               status.Producer
 }
 
-func (t *ticker) Loop() {
-	txes, err := t.store.List()
+func New(logger *zerolog.Logger, store storage.Storage, manager manager.Manager, prod status.Producer, confirmationBlocks *big.Int) *Watcher {
+	return &Watcher{
+		logger:             logger,
+		store:              store,
+		confirmationBlocks: confirmationBlocks,
+		manager:            manager,
+		prod:               prod,
+	}
+}
+
+func (w *Watcher) Tick(ctx context.Context) error {
+	txes, err := w.store.List()
 	if err != nil {
-		return
+		return fmt.Errorf("failed to retrieve monitored transactions: %w", err)
 	}
 
-	if len(txes) == 0 {
-		return
+	head, err := w.manager.Head(ctx)
+	if err != nil {
+		return err
 	}
-
-	var currentBlock *big.Int
-
-	t.logger.Debug().Int("count", len(txes)).Msg("Checking on stored transactions.")
 
 	for _, tx := range txes {
-		logger := t.logger.With().Str("requestId", tx.ID).Logger()
+		logger := w.logger.With().Str("id", tx.ID).Str("hash", tx.Hash.String()).Logger()
 
-		if tx.MinedBlock != nil && new(big.Int).Sub(tx.MinedBlock.Number, currentBlock).Cmp(big.NewInt(6)) < 0 {
+		rec, err := w.manager.Receipt(ctx, tx.Hash)
+		if err != nil {
+			logger.Err(err).Msg("Failed to get receipt.")
 			continue
 		}
 
-		rcpt, err := t.eth.TransactionReceipt(context.TODO(), tx.Hash)
-		if err != nil {
-			if errors.Is(err, ethereum.NotFound) {
-				logger.Warn().Msg("No receipt found.")
-			} else {
-				logger.Err(err).Msg("Error retrieving receipt.")
-			}
-			continue
+		minedBlock := &storage.Block{
+			Number: rec.BlockNumber,
+			Hash:   rec.BlockHash,
 		}
 
 		if tx.MinedBlock == nil {
-			t.store.SetTxMined(tx.ID, receiptBlock(rcpt))
-		} else if tx.MinedBlock.Hash != rcpt.TxHash {
-			logger.Warn().Msg("Transaction moved between blocks.")
-			t.store.SetTxMined(tx.ID, receiptBlock(rcpt))
+			// Newly mined.
+			logger.Info().Msg("Transaction mined.")
+			err = w.store.SetTxMined(tx.ID, minedBlock)
+			if err != nil {
+				return err
+			}
+			w.prod.Mined(&status.MinedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlock})
+		} else if new(big.Int).Sub(head.Number, tx.MinedBlock.Number).Cmp(w.confirmationBlocks) >= 0 {
+			logger.Info().Msg("Transaction confirmed.")
+			logs := make([]*status.Log, len(rec.Logs))
+
+			for i, l := range rec.Logs {
+				logs[i] = &status.Log{
+					Address: l.Address,
+					Topics:  l.Topics,
+					Data:    l.Data,
+				}
+			}
+
+			msg := &status.ConfirmedMsg{
+				ID:         tx.ID,
+				Hash:       tx.Hash,
+				Block:      minedBlock,
+				Successful: rec.Status == 1,
+				Logs:       logs,
+			}
+
+			w.prod.Confirmed(msg)
+			err := w.store.Remove(tx.ID)
+			if err != nil {
+				logger.Err(err).Msg("Failed to remove transaction from store.")
+			}
 		}
-
-		logger.Info().Msg("Transaction mined.")
+		// Otherwise, we're waiting for more confirmations.
 	}
-}
 
-func receiptBlock(rcpt *types.Receipt) *storage.Block {
-	return &storage.Block{Number: rcpt.BlockNumber, Hash: rcpt.TxHash}
+	return nil
 }

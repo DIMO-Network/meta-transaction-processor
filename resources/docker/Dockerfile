@@ -2,8 +2,8 @@ FROM golang:1.18 AS build
 
 RUN useradd -u 10001 dimo
 
-WORKDIR /go/src/github.com/DIMO-INC/meta-transaction-processor/
-COPY . /go/src/github.com/DIMO-INC/meta-transaction-processor/
+WORKDIR /go/src/github.com/DIMO-Network/meta-transaction-processor/
+COPY . /go/src/github.com/DIMO-Network/meta-transaction-processor/
 
 ENV CGO_ENABLED=0
 ENV GOOS=linux
@@ -22,7 +22,8 @@ WORKDIR /
 
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /etc/passwd /etc/passwd
-COPY --from=build /go/src/github.com/DIMO-INC/meta-transaction-processor/target/bin/meta-transaction-processor .
+COPY --from=build /go/src/github.com/DIMO-Network/meta-transaction-processor/target/bin/meta-transaction-processor .
+COPY --from=build /go/src/github.com/DIMO-Network/meta-transaction-processor/migrations ./migrations
 
 USER dimo
 

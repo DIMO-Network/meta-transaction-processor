@@ -52,7 +52,6 @@ func main() {
 				command = command + " " + os.Args[3]
 			}
 		}
-		logger.Info().Str("dsn", settings.DB.BuildConnectionString(true)).Msg("OUT")
 		migrateDatabase(logger, &settings, command)
 		return
 	}

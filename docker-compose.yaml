@@ -1,0 +1,18 @@
+version: '3.9'
+
+services:
+  postgresql:
+    image: postgres:12.9-alpine # matches version used on aws environments
+    container_name: pg-meta-transaction-processor
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=dimo
+      - POSTGRES_PASSWORD=dimo
+      - POSTGRES_DB=meta_transaction_processor
+    volumes:
+      - postgresdb:/var/lib/postgresql/data:delegated
+
+volumes:
+  postgresdb:
+    driver: local

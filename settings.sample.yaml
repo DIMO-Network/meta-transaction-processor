@@ -22,3 +22,12 @@ KAFKA_SERVERS: 127.0.0.1:9092
 # Same on all environments.
 TRANSACTION_REQUEST_TOPIC: topic.transaction.request.send
 TRANSACTION_STATUS_TOPIC: topic.transaction.request.status
+
+DB:
+  USER: dimo
+  PASSWORD: dimo
+  PORT: '5432'
+  HOST: localhost
+  NAME: meta_transaction_processor
+  MAX_OPEN_CONNECTIONS: 10
+  MAX_IDLE_CONNECTIONS: 10

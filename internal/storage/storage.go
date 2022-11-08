@@ -31,8 +31,8 @@ type Transaction struct {
 	GasPrice *big.Int
 	Hash     common.Hash
 
-	SubmitBlock *Block
-	MineBlock   *Block
+	SubmittedBlock *Block
+	MinedBlock     *Block
 }
 
 type memStorage struct {
@@ -61,7 +61,7 @@ func (s *memStorage) List() ([]*Transaction, error) {
 
 func (s *memStorage) SetMined(id string, block *Block) error {
 	s.Lock()
-	s.storage[id].MineBlock = block
+	s.storage[id].MinedBlock = block
 	s.Unlock()
 	return nil
 }

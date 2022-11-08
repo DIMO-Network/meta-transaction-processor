@@ -2,7 +2,7 @@ replicaCount: 1
 image:
   repository: dimozone/meta-transaction-processor
   pullPolicy: IfNotPresent
-  tag: 27e34c9
+  tag: bc49605
 imagePullSecrets: []
 nameOverride: ''
 fullnameOverride: ''

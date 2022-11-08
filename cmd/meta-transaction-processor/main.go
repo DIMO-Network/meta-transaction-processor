@@ -28,8 +28,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var confirmationBlocks = big.NewInt(3)
-
 type EmitLog struct {
 	Address common.Address
 	Topics  []common.Hash
@@ -43,7 +41,11 @@ func main() {
 		logger.Fatal().Msg("Couldn't load settings.")
 	}
 
-	logger.Info().Int("chainId", settings.EthereumChainID).Msg("Loaded settings.")
+	logger.Info().
+		Int64("chainId", settings.EthereumChainID).
+		Int64("confirmationBlocks", settings.ConfirmationBlocks).Msg("Loaded settings.")
+
+	confirmationBlocks := big.NewInt(settings.ConfirmationBlocks)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -91,7 +93,7 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to create Kafka transaction status producer.")
 	}
 
-	chainID := big.NewInt(int64(settings.EthereumChainID))
+	chainID := big.NewInt(settings.EthereumChainID)
 
 	manager := manager.New(ethClient, chainID, send, store, &logger, sprod)
 

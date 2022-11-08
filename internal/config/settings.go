@@ -25,7 +25,7 @@ type Settings struct {
 
 	// EthereumChainID is the chain ID of the target blockchain. One standard
 	// list of these is https://chainlist.org.
-	EthereumChainID int `yaml:"ETHEREUM_CHAIN_ID"`
+	EthereumChainID int64 `yaml:"ETHEREUM_CHAIN_ID"`
 
 	// PrivateKeyMode is true when the private key for the sender is being injected
 	// into the environment. This should never be used in production.
@@ -41,5 +41,5 @@ type Settings struct {
 
 	// ConfirmationBlocks is the number of blocks needed to consider a
 	// transaction confirmed.
-	ConfirmationBlocks int `yaml:"CONFIRMATION_BLOCKS"`
+	ConfirmationBlocks int64 `yaml:"CONFIRMATION_BLOCKS"`
 }

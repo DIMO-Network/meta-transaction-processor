@@ -16,9 +16,10 @@ import (
 )
 
 type TransactionRequest struct {
-	ID   string
-	To   common.Address
-	Data []byte
+	ID    string
+	To    common.Address
+	Data  []byte
+	Nonce *uint64
 }
 
 type Manager interface {
@@ -57,9 +58,15 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 		return err
 	}
 
-	nonce, err := m.client.PendingNonceAt(ctx, m.sender.Address())
-	if err != nil {
-		return err
+	nonce := req.Nonce
+
+	if nonce == nil {
+		pNonce, err := m.client.PendingNonceAt(ctx, m.sender.Address())
+		if err != nil {
+			return err
+		}
+
+		nonce = &pNonce
 	}
 
 	signer := types.LatestSignerForChainID(m.chainID)
@@ -82,7 +89,7 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 	}
 
 	txd := &types.LegacyTx{
-		Nonce:    nonce,
+		Nonce:    *nonce,
 		GasPrice: gasPrice,
 		Gas:      gasLimit,
 		To:       &req.To,
@@ -102,26 +109,30 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 	}
 	txHash := signedTx.Hash()
 
-	storeTx := &storage.Transaction{
-		ID:   req.ID,
-		To:   req.To,
-		Data: req.Data,
+	if req.Nonce == nil {
+		storeTx := &storage.Transaction{
+			ID:   req.ID,
+			To:   req.To,
+			Data: req.Data,
 
-		Nonce:    nonce,
-		GasPrice: gasPrice,
-		Hash:     txHash,
+			Nonce:    *nonce,
+			GasPrice: gasPrice,
+			Hash:     txHash,
 
-		SubmittedBlock: &storage.Block{
-			Number: head.Number,
-			Hash:   head.Hash(),
-		},
-	}
+			SubmittedBlock: &storage.Block{
+				Number: head.Number,
+				Hash:   head.Hash(),
+			},
+		}
 
-	m.logger.Info().Str("id", req.ID).Interface("tx", storeTx).Msg("Sending transaction.")
+		m.logger.Info().Str("id", req.ID).Interface("tx", storeTx).Msg("Sending transaction.")
 
-	err = m.storage.New(storeTx)
-	if err != nil {
-		return err
+		err = m.storage.New(storeTx)
+		if err != nil {
+			return err
+		}
+	} else {
+		m.storage.SetBoosted(req.ID, &storage.Block{Number: head.Number, Hash: head.Hash()}, gasPrice, txHash)
 	}
 
 	err = m.client.SendTransaction(ctx, signedTx)
@@ -129,10 +140,12 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 		return err
 	}
 
-	m.producer.Submitted(&status.SubmittedMsg{
-		ID:   req.ID,
-		Hash: txHash,
-	})
+	if req.Nonce == nil {
+		m.producer.Submitted(&status.SubmittedMsg{
+			ID:   req.ID,
+			Hash: txHash,
+		})
+	}
 
 	return nil
 }

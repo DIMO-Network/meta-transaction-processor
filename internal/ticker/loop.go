@@ -2,12 +2,14 @@ package ticker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/manager"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
+	"github.com/ethereum/go-ethereum"
 
 	"github.com/rs/zerolog"
 )
@@ -46,6 +48,18 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 		rec, err := w.manager.Receipt(ctx, tx.Hash)
 		if err != nil {
+			if errors.Is(err, ethereum.NotFound) {
+				lastSubmit := tx.SubmittedBlock
+				if tx.BoostedBlock != nil {
+					lastSubmit = tx.BoostedBlock
+				}
+
+				if new(big.Int).Sub(head.Number, lastSubmit.Number).Cmp(w.confirmationBlocks) >= 0 {
+					logger.Info().Msg("Boosting transaction.")
+					w.manager.SendTx(ctx, &manager.TransactionRequest{ID: tx.ID, To: tx.To, Data: tx.Data, Nonce: &tx.Nonce})
+				}
+			}
+
 			logger.Err(err).Msg("Failed to get receipt.")
 			continue
 		}

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/models"
 	"github.com/DIMO-Network/shared/db"
@@ -65,6 +66,15 @@ func modelToTx(mod *models.MetaTransactionRequest) *Transaction {
 		}
 	}
 
+	var boostedBlock *Block
+
+	if !mod.BoostedBlockNumber.IsZero() {
+		boostedBlock = &Block{
+			Number: mod.BoostedBlockNumber.Int(nil),
+			Hash:   common.BytesToHash(mod.BoostedBlockHash.Bytes),
+		}
+	}
+
 	return &Transaction{
 		ID: mod.ID,
 
@@ -80,7 +90,8 @@ func modelToTx(mod *models.MetaTransactionRequest) *Transaction {
 			Hash:   common.BytesToHash(mod.SubmittedBlockHash),
 		},
 
-		MinedBlock: minedBlock,
+		MinedBlock:   minedBlock,
+		BoostedBlock: boostedBlock,
 	}
 }
 
@@ -92,6 +103,21 @@ func (s *dbStorage) SetMined(id string, block *Block) error {
 
 	mtr.MinedBlockNumber = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(block.Number, 0))
 	mtr.MinedBlockHash = null.BytesFrom(block.Hash[:])
+
+	_, err = mtr.Update(context.Background(), s.DBS().Writer, boil.Infer())
+	return err
+}
+
+func (s *dbStorage) SetBoosted(id string, block *Block, gasPrice *big.Int, hash common.Hash) error {
+	mtr, err := models.FindMetaTransactionRequest(context.Background(), s.DBS().Writer, id)
+	if err != nil {
+		return err
+	}
+
+	mtr.BoostedBlockNumber = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(block.Number, 0))
+	mtr.BoostedBlockHash = null.BytesFrom(block.Hash[:])
+	mtr.GasPrice = types.NewDecimal(new(decimal.Big).SetBigMantScale(gasPrice, 0))
+	mtr.Hash = hash[:]
 
 	_, err = mtr.Update(context.Background(), s.DBS().Writer, boil.Infer())
 	return err

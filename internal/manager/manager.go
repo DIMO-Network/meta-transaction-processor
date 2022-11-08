@@ -111,7 +111,7 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 		GasPrice: gasPrice,
 		Hash:     txHash,
 
-		CreationBlock: &storage.Block{
+		SubmitBlock: &storage.Block{
 			Number: head.Number,
 			Hash:   head.Hash(),
 		},

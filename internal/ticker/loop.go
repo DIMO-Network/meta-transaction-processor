@@ -62,7 +62,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			w.prod.Mined(&status.MinedMsg{ID: tx.ID, Hash: tx.Hash, Block: minedBlock})
+			w.prod.Mined(&status.MinedMsg{ID: tx.ID, Hash: tx.Hash})
 		} else if new(big.Int).Sub(head.Number, tx.MinedBlock.Number).Cmp(w.confirmationBlocks) >= 0 {
 			logger.Info().Msg("Transaction confirmed.")
 			logs := make([]*status.Log, len(rec.Logs))
@@ -78,7 +78,6 @@ func (w *Watcher) Tick(ctx context.Context) error {
 			msg := &status.ConfirmedMsg{
 				ID:         tx.ID,
 				Hash:       tx.Hash,
-				Block:      minedBlock,
 				Successful: rec.Status == 1,
 				Logs:       logs,
 			}

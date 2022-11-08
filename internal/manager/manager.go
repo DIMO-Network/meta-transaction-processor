@@ -130,9 +130,8 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 	}
 
 	m.producer.Submitted(&status.SubmittedMsg{
-		ID:    req.ID,
-		Hash:  txHash,
-		Block: store.CreationBlock,
+		ID:   req.ID,
+		Hash: txHash,
 	})
 
 	return nil

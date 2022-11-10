@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"sync"
 
@@ -54,19 +55,19 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 
 	head, err := m.client.HeaderByNumber(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to retrieve head block: %w", err)
 	}
 
 	nonce, err := m.client.PendingNonceAt(ctx, m.sender.Address())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to retrieve nonce: %w", err)
 	}
 
 	signer := types.LatestSignerForChainID(m.chainID)
 
 	gasPrice, err := m.client.SuggestGasPrice(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to retrieve gas price estimate: %w", err)
 	}
 
 	callMsg := ethereum.CallMsg{
@@ -78,7 +79,7 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 
 	gasLimit, err := m.client.EstimateGas(ctx, callMsg)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to estimate gas usage: %w", err)
 	}
 
 	txd := &types.LegacyTx{
@@ -94,11 +95,11 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 	sigHash := signer.Hash(tx)
 	sigBytes, err := m.sender.Sign(ctx, sigHash)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to sign transaction: %w", err)
 	}
 	signedTx, err := tx.WithSignature(signer, sigBytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to attach signature to transaction: %w", err)
 	}
 	txHash := signedTx.Hash()
 
@@ -121,12 +122,12 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 
 	err = m.storage.New(storeTx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to store transaction: %w", err)
 	}
 
 	err = m.client.SendTransaction(ctx, signedTx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to submit transaction: %w", err)
 	}
 
 	m.producer.Submitted(&status.SubmittedMsg{

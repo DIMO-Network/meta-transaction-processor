@@ -37,6 +37,8 @@ type MetaTransactionRequest struct {
 	MinedBlockHash       null.Bytes        `boil:"mined_block_hash" json:"mined_block_hash,omitempty" toml:"mined_block_hash" yaml:"mined_block_hash,omitempty"`
 	CreatedAt            time.Time         `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
 	UpdatedAt            time.Time         `boil:"updated_at" json:"updated_at" toml:"updated_at" yaml:"updated_at"`
+	BoostedBlockNumber   types.NullDecimal `boil:"boosted_block_number" json:"boosted_block_number,omitempty" toml:"boosted_block_number" yaml:"boosted_block_number,omitempty"`
+	BoostedBlockHash     null.Bytes        `boil:"boosted_block_hash" json:"boosted_block_hash,omitempty" toml:"boosted_block_hash" yaml:"boosted_block_hash,omitempty"`
 
 	R *metaTransactionRequestR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L metaTransactionRequestL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -55,6 +57,8 @@ var MetaTransactionRequestColumns = struct {
 	MinedBlockHash       string
 	CreatedAt            string
 	UpdatedAt            string
+	BoostedBlockNumber   string
+	BoostedBlockHash     string
 }{
 	ID:                   "id",
 	Nonce:                "nonce",
@@ -68,6 +72,8 @@ var MetaTransactionRequestColumns = struct {
 	MinedBlockHash:       "mined_block_hash",
 	CreatedAt:            "created_at",
 	UpdatedAt:            "updated_at",
+	BoostedBlockNumber:   "boosted_block_number",
+	BoostedBlockHash:     "boosted_block_hash",
 }
 
 var MetaTransactionRequestTableColumns = struct {
@@ -83,6 +89,8 @@ var MetaTransactionRequestTableColumns = struct {
 	MinedBlockHash       string
 	CreatedAt            string
 	UpdatedAt            string
+	BoostedBlockNumber   string
+	BoostedBlockHash     string
 }{
 	ID:                   "meta_transaction_requests.id",
 	Nonce:                "meta_transaction_requests.nonce",
@@ -96,6 +104,8 @@ var MetaTransactionRequestTableColumns = struct {
 	MinedBlockHash:       "meta_transaction_requests.mined_block_hash",
 	CreatedAt:            "meta_transaction_requests.created_at",
 	UpdatedAt:            "meta_transaction_requests.updated_at",
+	BoostedBlockNumber:   "meta_transaction_requests.boosted_block_number",
+	BoostedBlockHash:     "meta_transaction_requests.boosted_block_hash",
 }
 
 // Generated where
@@ -237,6 +247,8 @@ var MetaTransactionRequestWhere = struct {
 	MinedBlockHash       whereHelpernull_Bytes
 	CreatedAt            whereHelpertime_Time
 	UpdatedAt            whereHelpertime_Time
+	BoostedBlockNumber   whereHelpertypes_NullDecimal
+	BoostedBlockHash     whereHelpernull_Bytes
 }{
 	ID:                   whereHelperstring{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"id\""},
 	Nonce:                whereHelpertypes_Decimal{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"nonce\""},
@@ -250,6 +262,8 @@ var MetaTransactionRequestWhere = struct {
 	MinedBlockHash:       whereHelpernull_Bytes{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"mined_block_hash\""},
 	CreatedAt:            whereHelpertime_Time{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"created_at\""},
 	UpdatedAt:            whereHelpertime_Time{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"updated_at\""},
+	BoostedBlockNumber:   whereHelpertypes_NullDecimal{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"boosted_block_number\""},
+	BoostedBlockHash:     whereHelpernull_Bytes{field: "\"meta_transaction_processor\".\"meta_transaction_requests\".\"boosted_block_hash\""},
 }
 
 // MetaTransactionRequestRels is where relationship names are stored.
@@ -269,9 +283,9 @@ func (*metaTransactionRequestR) NewStruct() *metaTransactionRequestR {
 type metaTransactionRequestL struct{}
 
 var (
-	metaTransactionRequestAllColumns            = []string{"id", "nonce", "gas_price", "to", "data", "hash", "submitted_block_number", "submitted_block_hash", "mined_block_number", "mined_block_hash", "created_at", "updated_at"}
+	metaTransactionRequestAllColumns            = []string{"id", "nonce", "gas_price", "to", "data", "hash", "submitted_block_number", "submitted_block_hash", "mined_block_number", "mined_block_hash", "created_at", "updated_at", "boosted_block_number", "boosted_block_hash"}
 	metaTransactionRequestColumnsWithoutDefault = []string{"id", "nonce", "gas_price", "to", "data", "hash", "submitted_block_number", "submitted_block_hash"}
-	metaTransactionRequestColumnsWithDefault    = []string{"mined_block_number", "mined_block_hash", "created_at", "updated_at"}
+	metaTransactionRequestColumnsWithDefault    = []string{"mined_block_number", "mined_block_hash", "created_at", "updated_at", "boosted_block_number", "boosted_block_hash"}
 	metaTransactionRequestPrimaryKeyColumns     = []string{"id"}
 	metaTransactionRequestGeneratedColumns      = []string{}
 )

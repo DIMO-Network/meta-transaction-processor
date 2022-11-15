@@ -43,6 +43,8 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 		to := common.HexToAddress(event.Data.To)
 		data := common.FromHex(event.Data.Data)
 
+		c.logger.Info().Interface("request", event.Data).Msg("Got meta-transaction request.")
+
 		err = c.manager.SendTx(session.Context(), &manager.TransactionRequest{ID: event.Data.ID, To: to, Data: data})
 		if err != nil {
 			c.logger.Err(err).Msg("Error sending transaction.")

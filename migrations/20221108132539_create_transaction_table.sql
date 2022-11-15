@@ -15,10 +15,10 @@ CREATE TABLE meta_transaction_requests(
         CONSTRAINT meta_transaction_requests_hash_check CHECK (length(hash) = 32),
     submitted_block_number numeric(78) NOT NULL,
     submitted_block_hash bytea NOT NULL
-        CONSTRAINT meta_transaction_requests_submitted_block_hash_check CHECK (length(hash) = 32),
+        CONSTRAINT meta_transaction_requests_submitted_block_hash_check CHECK (length(submitted_block_hash) = 32),
     mined_block_number numeric(78),
     mined_block_hash bytea
-        CONSTRAINT meta_transaction_requests_mined_block_hash_check CHECK (length(hash) = 32),
+        CONSTRAINT meta_transaction_requests_mined_block_hash_check CHECK (length(mined_block_hash) = 32),
     created_at timestamptz NOT NULL DEFAULT current_timestamp,
     updated_at timestamptz NOT NULL DEFAULT current_timestamp
 );

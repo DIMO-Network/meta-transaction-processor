@@ -38,6 +38,8 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			continue
 		}
 
+		c.logger.Info().Interface("requet", event.Data).Msg("Got transaction request.")
+
 		to := common.HexToAddress(event.Data.To)
 		data := common.FromHex(event.Data.Data)
 

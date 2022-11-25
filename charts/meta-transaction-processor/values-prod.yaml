@@ -11,7 +11,7 @@ env:
   CONFIRMATION_BLOCKS: 5
   PRIVATE_KEY_MODE: false
   IN_MEMORY_DB: false
-  KAFKA_BROKERS: kafka-prod-dimo-kafka-kafka-brokers:9092
+  KAFKA_SERVERS: kafka-prod-dimo-kafka-kafka-brokers:9092
 ingress:
   enabled: false
 resources:

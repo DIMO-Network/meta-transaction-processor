@@ -83,17 +83,19 @@ func (s *kmsSender) Sign(ctx context.Context, hash common.Hash) ([]byte, error) 
 	return nil, fmt.Errorf("couldn't choose a working V from the returned R and S")
 }
 
-func fixLen(b []byte) []byte {
-	i := 0
-	for i < len(b) {
-		if b[i] != 0 {
-			break
-		}
-		i++
+func fixLen(in []byte) []byte {
+	outStart := 0
+	inLen := len(b)
+	inStart := 0
+	
+	if inLen > 32 {
+		inStart = inLen - 32
+	} else if inLen < 32 {
+		outStart = 32 - inLen
 	}
 
 	out := make([]byte, common.HashLength)
-	copy(out, b[i:])
+	copy(out[outStart:], in[inStart:])
 	return out
 }
 

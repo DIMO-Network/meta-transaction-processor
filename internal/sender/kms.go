@@ -85,7 +85,7 @@ func (s *kmsSender) Sign(ctx context.Context, hash common.Hash) ([]byte, error) 
 
 func fixLen(in []byte) []byte {
 	outStart := 0
-	inLen := len(b)
+	inLen := len(in)
 	inStart := 0
 	
 	if inLen > 32 {

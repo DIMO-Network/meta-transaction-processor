@@ -8,7 +8,7 @@ cronJob:
 env:
   ENVIRONMENT: prod
   ETHEREUM_CHAIN_ID: 137
-  CONFIRMATION_BLOCKS: 5
+  CONFIRMATION_BLOCKS: 10
   PRIVATE_KEY_MODE: false
   IN_MEMORY_DB: false
   KAFKA_SERVERS: kafka-prod-dimo-kafka-kafka-brokers:9092

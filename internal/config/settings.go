@@ -50,4 +50,7 @@ type Settings struct {
 	InMemoryDB bool `yaml:"IN_MEMORY_DB"`
 
 	DB db.Settings `yaml:"DB"`
+
+	// GasPriceFactor is multiplied by the gas price when submitting transactions.
+	GasPriceFactor string `yaml:"GAS_PRICE_FACTOR"`
 }

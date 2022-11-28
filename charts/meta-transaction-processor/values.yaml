@@ -27,6 +27,7 @@ env:
   MONITORING_PORT: 8888
   ETHEREUM_CHAIN_ID: 80001
   PRIVATE_KEY_MODE: false
+  IN_MEMORY_DB: false
   CONFIRMATION_BLOCKS: 2
   KAFKA_SERVERS: kafka-dev-dimo-kafka-kafka-brokers:9092
   TRANSACTION_REQUEST_TOPIC: topic.transaction.request.send
@@ -36,6 +37,7 @@ env:
   DB_MAX_IDLE_CONNECTIONS: 10
   DB_PORT: '5432'
   DB_NAME: meta_transaction_processor
+  GAS_PRICE_FACTOR: 2
 service:
   type: ClusterIP
   ports:

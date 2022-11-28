@@ -56,6 +56,19 @@ func main() {
 		return
 	}
 
+	gasPriceFactor := big.NewRat(1, 1)
+
+	if gpfStr := settings.GasPriceFactor; gpfStr != "" {
+		gpf, ok := new(big.Rat).SetString(gpfStr)
+		if !ok {
+			log.Fatal().Str("gasPriceFactor", gpfStr).Msg("Invalid gas price factor.")
+		}
+		if gpf.Cmp(big.NewRat(1, 1)) < 0 {
+			log.Fatal().Str("gasPriceFactor", gpfStr).Msg("Gas price factor less than 1.")
+		}
+		gasPriceFactor = gpf
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var store storage.Storage
@@ -71,7 +84,9 @@ func main() {
 
 	logger.Info().
 		Int64("chainId", settings.EthereumChainID).
-		Int64("confirmationBlocks", settings.ConfirmationBlocks).Msg("Loaded settings.")
+		Int64("confirmationBlocks", settings.ConfirmationBlocks).
+		Str("gasPriceFactor", settings.GasPriceFactor).
+		Msg("Loaded settings.")
 
 	confirmationBlocks := big.NewInt(settings.ConfirmationBlocks)
 
@@ -97,7 +112,7 @@ func main() {
 
 	chainID := big.NewInt(settings.EthereumChainID)
 
-	manager := manager.New(ethClient, chainID, send, store, &logger, sprod)
+	manager := manager.New(ethClient, chainID, send, store, &logger, sprod, gasPriceFactor)
 
 	go func() {
 		consumer.New(ctx, "meta-transaction-processor", settings.TransactionRequestTopic, kafkaClient, &logger, ethClient, manager)

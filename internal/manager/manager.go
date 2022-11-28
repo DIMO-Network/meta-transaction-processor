@@ -29,25 +29,27 @@ type Manager interface {
 	Head(ctx context.Context) (*types.Header, error)
 }
 
-func New(client *ethclient.Client, chainID *big.Int, sender sender.Sender, storage storage.Storage, logger *zerolog.Logger, sprod status.Producer) Manager {
+func New(client *ethclient.Client, chainID *big.Int, sender sender.Sender, storage storage.Storage, logger *zerolog.Logger, sprod status.Producer, gasPriceFactor *big.Rat) Manager {
 	return &manager{
-		client:   client,
-		chainID:  chainID,
-		sender:   sender,
-		storage:  storage,
-		logger:   logger,
-		producer: sprod,
+		client:         client,
+		chainID:        chainID,
+		sender:         sender,
+		storage:        storage,
+		logger:         logger,
+		producer:       sprod,
+		gasPriceFactor: gasPriceFactor,
 	}
 }
 
 type manager struct {
-	chainID    *big.Int
-	sender     sender.Sender
-	client     *ethclient.Client
-	storage    storage.Storage
-	logger     *zerolog.Logger
-	producer   status.Producer
-	nonceMutex sync.Mutex
+	chainID        *big.Int
+	sender         sender.Sender
+	client         *ethclient.Client
+	storage        storage.Storage
+	logger         *zerolog.Logger
+	producer       status.Producer
+	nonceMutex     sync.Mutex
+	gasPriceFactor *big.Rat
 }
 
 func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
@@ -72,10 +74,12 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 
 	signer := types.LatestSignerForChainID(m.chainID)
 
-	gasPrice, err := m.client.SuggestGasPrice(ctx)
+	gasPriceEst, err := m.client.SuggestGasPrice(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve gas price estimate: %w", err)
 	}
+
+	gasPrice := new(big.Int).Div(new(big.Int).Mul(gasPriceEst, m.gasPriceFactor.Num()), m.gasPriceFactor.Denom())
 
 	callMsg := ethereum.CallMsg{
 		From:     m.sender.Address(),

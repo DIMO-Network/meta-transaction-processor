@@ -9,7 +9,17 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog"
+)
+
+var requestsTotal = promauto.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: "meta_transaction_processor",
+		Subsystem: "consumer",
+		Name:      "requests_total",
+	},
 )
 
 type consumer struct {
@@ -30,6 +40,8 @@ func (c *consumer) Cleanup(sarama.ConsumerGroupSession) error { return nil }
 
 func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for msg := range claim.Messages() {
+		requestsTotal.Inc()
+
 		event := &shared.CloudEvent[TransactionEventData]{}
 
 		err := json.Unmarshal(msg.Value, event)

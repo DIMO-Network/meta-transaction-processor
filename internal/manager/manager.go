@@ -137,7 +137,10 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 			return fmt.Errorf("failed to store transaction: %w", err)
 		}
 	} else {
-		m.storage.SetBoosted(req.ID, &storage.Block{Number: head.Number, Hash: head.Hash()}, gasPrice, txHash)
+		err = m.storage.SetBoosted(req.ID, &storage.Block{Number: head.Number, Hash: head.Hash()}, gasPrice, txHash)
+		if err != nil {
+			return fmt.Errorf("failed to store boosted transaction: %w", err)
+		}
 	}
 
 	err = m.client.SendTransaction(ctx, signedTx)

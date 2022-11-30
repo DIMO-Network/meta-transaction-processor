@@ -33,13 +33,7 @@ type ConfirmedMsg struct {
 type Log struct {
 	Address common.Address `json:"address"`
 	Topics  []common.Hash  `json:"topics"`
-	Data    []byte         `json:"data"`
-}
-
-type ceLog struct {
-	Address string   `json:"address"`
-	Topics  []string `json:"topics"`
-	Data    string   `json:"data"`
+	Data    hexutil.Bytes  `json:"data"`
 }
 
 type Producer interface {
@@ -54,32 +48,20 @@ type kafkaProducer struct {
 	logger *zerolog.Logger
 }
 
-type ceTx struct {
-	Hash       string  `json:"hash"`
-	Successful *bool   `json:"successful,omitempty"`
-	Logs       []ceLog `json:"logs,omitempty"`
+type tx struct {
+	Hash       common.Hash `json:"hash"`
+	Successful *bool       `json:"successful,omitempty"`
+	Logs       []*Log      `json:"logs,omitempty"`
 }
 
 // Just using the same struct for all three event types. Lazy.
 type ceData struct {
 	RequestID   string `json:"requestId"`
 	Type        string `json:"type"`
-	Transaction ceTx   `json:"transaction"`
+	Transaction tx     `json:"transaction"`
 }
 
 func (p *kafkaProducer) Confirmed(msg *ConfirmedMsg) {
-	logs := make([]ceLog, len(msg.Logs))
-	for i, l := range msg.Logs {
-		top := make([]string, len(l.Topics))
-		for j, t := range l.Topics {
-			top[j] = t.Hex()
-		}
-
-		logs[i].Address = hexutil.Encode(l.Address[:])
-		logs[i].Topics = top
-		logs[i].Data = hexutil.Encode(l.Data)
-	}
-
 	event := shared.CloudEvent[ceData]{
 		ID:          ksuid.New().String(),
 		Source:      "meta-transaction-processor",
@@ -90,10 +72,10 @@ func (p *kafkaProducer) Confirmed(msg *ConfirmedMsg) {
 		Data: ceData{
 			RequestID: msg.ID,
 			Type:      "Confirmed",
-			Transaction: ceTx{
-				Hash:       msg.Hash.Hex(),
+			Transaction: tx{
+				Hash:       msg.Hash,
 				Successful: &msg.Successful,
-				Logs:       logs,
+				Logs:       msg.Logs,
 			},
 		},
 	}
@@ -106,12 +88,16 @@ func (p *kafkaProducer) Confirmed(msg *ConfirmedMsg) {
 
 	p.logger.Info().Interface("event", event).Msg("Emitting event.")
 
-	p.kp.SendMessage(
+	_, _, err = p.kp.SendMessage(
 		&sarama.ProducerMessage{
 			Topic: p.topic,
 			Value: sarama.ByteEncoder(bs),
 		},
 	)
+
+	if err != nil {
+		p.logger.Err(err).Str("requestId", msg.ID).Str("type", "Confirmed").Msg("Failed sending status update.")
+	}
 }
 
 func (p *kafkaProducer) Submitted(msg *SubmittedMsg) {
@@ -125,8 +111,8 @@ func (p *kafkaProducer) Submitted(msg *SubmittedMsg) {
 		Data: ceData{
 			RequestID: msg.ID,
 			Type:      "Submitted",
-			Transaction: ceTx{
-				Hash: msg.Hash.Hex(),
+			Transaction: tx{
+				Hash: msg.Hash,
 			},
 		},
 	}
@@ -139,10 +125,16 @@ func (p *kafkaProducer) Submitted(msg *SubmittedMsg) {
 		return
 	}
 
-	p.kp.SendMessage(&sarama.ProducerMessage{
-		Topic: p.topic,
-		Value: sarama.ByteEncoder(bs),
-	})
+	_, _, err = p.kp.SendMessage(
+		&sarama.ProducerMessage{
+			Topic: p.topic,
+			Value: sarama.ByteEncoder(bs),
+		},
+	)
+
+	if err != nil {
+		p.logger.Err(err).Str("requestId", msg.ID).Str("type", "Submitted").Msg("Failed sending status update.")
+	}
 }
 
 func (p *kafkaProducer) Mined(msg *MinedMsg) {
@@ -156,8 +148,8 @@ func (p *kafkaProducer) Mined(msg *MinedMsg) {
 		Data: ceData{
 			RequestID: msg.ID,
 			Type:      "Mined",
-			Transaction: ceTx{
-				Hash: msg.Hash.Hex(),
+			Transaction: tx{
+				Hash: msg.Hash,
 			},
 		},
 	}
@@ -170,12 +162,16 @@ func (p *kafkaProducer) Mined(msg *MinedMsg) {
 		return
 	}
 
-	p.kp.SendMessage(
+	_, _, err = p.kp.SendMessage(
 		&sarama.ProducerMessage{
 			Topic: p.topic,
 			Value: sarama.ByteEncoder(bs),
 		},
 	)
+
+	if err != nil {
+		p.logger.Err(err).Str("requestId", msg.ID).Str("type", "Mined").Msg("Failed sending status update.")
+	}
 }
 
 func NewKafka(ctx context.Context, topic string, client sarama.Client, logger *zerolog.Logger) (Producer, error) {

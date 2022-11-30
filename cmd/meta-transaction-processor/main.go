@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"os"
 	"os/signal"
@@ -56,17 +57,9 @@ func main() {
 		return
 	}
 
-	gasPriceFactor := big.NewRat(1, 1)
-
-	if gpfStr := settings.GasPriceFactor; gpfStr != "" {
-		gpf, ok := new(big.Rat).SetString(gpfStr)
-		if !ok {
-			log.Fatal().Str("gasPriceFactor", gpfStr).Msg("Invalid gas price factor.")
-		}
-		if gpf.Cmp(big.NewRat(1, 1)) < 0 {
-			log.Fatal().Str("gasPriceFactor", gpfStr).Msg("Gas price factor less than 1.")
-		}
-		gasPriceFactor = gpf
+	gasPriceFactor, err := getGasPriceFactor(&settings)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to set gas price factor.")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -176,11 +169,28 @@ func createSender(ctx context.Context, settings *config.Settings, logger *zerolo
 	}
 }
 
+var ratOne = big.NewRat(1, 1)
+
+func getGasPriceFactor(settings *config.Settings) (*big.Rat, error) {
+	if gpfStr := settings.GasPriceFactor; gpfStr != "" {
+		gpf, ok := new(big.Rat).SetString(gpfStr)
+		if !ok {
+			return nil, errors.New("failed to parse into big.Rat")
+		}
+		if gpf.Cmp(ratOne) < 0 {
+			return nil, errors.New("factor less than 1")
+		}
+		return gpf, nil
+	}
+
+	return ratOne, nil
+}
+
 func createKafka(settings *config.Settings) (sarama.Client, error) {
 	kafkaConfig := sarama.NewConfig()
 	kafkaConfig.Version = sarama.V2_8_1_0                                    // Version from production.
 	kafkaConfig.Producer.Partitioner = kafkautil.NewJVMCompatiblePartitioner // Use the murmur2 hash from the official client.
-	kafkaConfig.Producer.Return.Successes = true
+	kafkaConfig.Producer.Return.Successes = true                             // Synchronous producer.
 
 	return sarama.NewClient(strings.Split(settings.KafkaServers, ","), kafkaConfig)
 }

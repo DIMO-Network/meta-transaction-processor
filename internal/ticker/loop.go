@@ -5,13 +5,24 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/manager"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
 	"github.com/ethereum/go-ethereum"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/rs/zerolog"
+)
+
+var loopDurationSeconds = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Namespace: "meta_transaction_processor",
+		Subsystem: "ticker",
+		Name:      "iteration_duration_seconds",
+	},
 )
 
 type Watcher struct {
@@ -33,6 +44,9 @@ func New(logger *zerolog.Logger, store storage.Storage, manager manager.Manager,
 }
 
 func (w *Watcher) Tick(ctx context.Context) error {
+	startTime := time.Now()
+	defer func() { loopDurationSeconds.Observe(float64(time.Since(startTime).Seconds())) }()
+
 	txes, err := w.store.List()
 	if err != nil {
 		return fmt.Errorf("failed to retrieve monitored transactions: %w", err)

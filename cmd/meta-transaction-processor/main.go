@@ -117,7 +117,7 @@ func main() {
 
 	go func() {
 		defer close(tickerDone)
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(5 * time.Second)
 		for {
 			select {
 			case <-ticker.C:

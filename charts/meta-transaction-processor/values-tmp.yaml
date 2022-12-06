@@ -39,7 +39,6 @@ podDisruptionBudget:
   minAvailable: 1
 kafka:
   clusterName: kafka-prod-dimo-kafka
-  clusterName: kafka-dev-dimo-kafka
   topics:
     - name: topic.transaction.request.send.tmp
       config:

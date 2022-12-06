@@ -4,6 +4,7 @@ image:
   pullPolicy: IfNotPresent
   tag: 0.1.2
 nameOverride: meta-transaction-processor-tmp
+fullnameOverride: meta-transaction-processor-tmp
 cronJob:
   enabled: false
 tmp: true
@@ -16,6 +17,7 @@ env:
   KAFKA_SERVERS: kafka-prod-dimo-kafka-kafka-brokers:9092
   TRANSACTION_REQUEST_TOPIC: topic.transaction.request.send.tmp
   TRANSACTION_STATUS_TOPIC: topic.transaction.request.status.tmp
+  DB_NAME: meta_transaction_processor_tmp
 ingress:
   enabled: false
 resources:

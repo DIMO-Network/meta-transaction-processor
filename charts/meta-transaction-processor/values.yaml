@@ -23,6 +23,7 @@ securityContext:
 cronJob:
   enabled: false
   schedule: 0 0 * * 0
+tmp: false
 env:
   MONITORING_PORT: 8888
   ETHEREUM_CHAIN_ID: 80001

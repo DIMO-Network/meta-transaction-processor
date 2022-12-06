@@ -1,0 +1,53 @@
+replicaCount: 1
+image:
+  repository: dimozone/meta-transaction-processor
+  pullPolicy: IfNotPresent
+  tag: 0.1.2
+nameOverride: meta-transaction-processor-tmp
+cronJob:
+  enabled: false
+tmp: true
+env:
+  ENVIRONMENT: prod
+  ETHEREUM_CHAIN_ID: 137
+  CONFIRMATION_BLOCKS: 10
+  PRIVATE_KEY_MODE: false
+  IN_MEMORY_DB: false
+  KAFKA_SERVERS: kafka-prod-dimo-kafka-kafka-brokers:9092
+  TRANSACTION_REQUEST_TOPIC: topic.transaction.request.send.tmp
+  TRANSACTION_STATUS_TOPIC: topic.transaction.request.status.tmp
+ingress:
+  enabled: false
+resources:
+  limits:
+    cpu: 1
+    memory: 1024Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podDisruptionBudget:
+  minAvailable: 1
+kafka:
+  clusterName: kafka-prod-dimo-kafka
+  clusterName: kafka-dev-dimo-kafka
+  topics:
+    - name: topic.transaction.request.send.tmp
+      config:
+        segment.ms: '3600000'
+        compression.type: producer
+        cleanup.policy: delete
+        min.compaction.lag.ms: '3600000'
+    - name: topic.transaction.request.status.tmp
+      config:
+        segment.ms: '3600000'
+        compression.type: producer
+        cleanup.policy: delete
+        min.compaction.lag.ms: '3600000'

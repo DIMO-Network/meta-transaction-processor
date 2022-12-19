@@ -88,10 +88,12 @@ func (m *manager) SendTx(ctx context.Context, req *TransactionRequest) error {
 		Data:     req.Data,
 	}
 
-	gasLimit, err := m.client.EstimateGas(ctx, callMsg)
+	gasLimitEst, err := m.client.EstimateGas(ctx, callMsg)
 	if err != nil {
 		return fmt.Errorf("failed to estimate gas usage: %w", err)
 	}
+
+	gasLimit := (gasLimitEst * m.gasPriceFactor.Num().Uint64()) / m.gasPriceFactor.Denom().Uint64()
 
 	txd := &types.LegacyTx{
 		Nonce:    *nonce,

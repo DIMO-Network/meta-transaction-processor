@@ -30,6 +30,6 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 podDisruptionBudget:
-  minAvailable: 1
+  minAvailable: 0
 kafka:
   clusterName: kafka-prod-dimo-kafka

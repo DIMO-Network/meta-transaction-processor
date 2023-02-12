@@ -68,9 +68,11 @@ func (w *Watcher) Tick(ctx context.Context) error {
 					lastSubmit = tx.BoostedBlock
 				}
 
-				if new(big.Int).Sub(head.Number, lastSubmit.Number).Cmp(w.confirmationBlocks) >= 0 {
-					logger.Info().Msg("Boosting transaction.")
-					w.manager.SendTx(ctx, &manager.TransactionRequest{ID: tx.ID, To: tx.To, Data: tx.Data, Nonce: &tx.Nonce})
+				if new(big.Int).Sub(head.Number, lastSubmit.Number).Cmp(big.NewInt(10)) >= 0 {
+					if new(big.Int).Sub(head.Number, tx.SubmittedBlock.Number).Cmp(big.NewInt(100)) < 0 {
+						logger.Info().Msg("Boosting transaction.")
+						w.manager.SendTx(ctx, &manager.TransactionRequest{ID: tx.ID, To: tx.To, Data: tx.Data, Nonce: &tx.Nonce})
+					}
 				}
 			}
 

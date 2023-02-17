@@ -8,6 +8,7 @@ import (
 	"github.com/DIMO-Network/shared"
 	"github.com/Shopify/sarama"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -29,9 +30,9 @@ type consumer struct {
 }
 
 type TransactionEventData struct {
-	ID   string `json:"id"`
-	To   string `json:"to"`
-	Data string `json:"data"`
+	ID   string         `json:"id"`
+	To   common.Address `json:"to"`
+	Data hexutil.Bytes  `json:"data"`
 }
 
 func (c *consumer) Setup(sarama.ConsumerGroupSession) error { return nil }
@@ -39,32 +40,34 @@ func (c *consumer) Setup(sarama.ConsumerGroupSession) error { return nil }
 func (c *consumer) Cleanup(sarama.ConsumerGroupSession) error { return nil }
 
 func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
-	for msg := range claim.Messages() {
-		requestsTotal.Inc()
+	for {
+		select {
+		case msg := <-claim.Messages():
+			requestsTotal.Inc()
+			logger := c.logger.With().Int32("partition", msg.Partition).Int64("offset", msg.Offset).Logger()
 
-		event := &shared.CloudEvent[TransactionEventData]{}
+			var event shared.CloudEvent[TransactionEventData]
+			if err := json.Unmarshal(msg.Value, &event); err != nil {
+				logger.Err(err).Msg("Couldn't parse request, skipping.")
+				continue
+			}
 
-		err := json.Unmarshal(msg.Value, event)
-		if err != nil {
-			c.logger.Err(err).Int32("partition", msg.Partition).Int64("offset", msg.Offset).Msg("Couldn't parse message, skipping.")
-			continue
+			data := event.Data
+
+			logger.Info().Str("requestId", data.ID).Str("toAddress", hexutil.Encode(data.To.Bytes())).Msg("Got transaction request.")
+
+			req := &manager.TransactionRequest{ID: data.ID, To: data.To, Data: data.Data}
+
+			err := c.manager.SendTx(session.Context(), req)
+			if err != nil {
+				logger.Err(err).Msg("Error sending transaction.")
+			}
+
+			session.MarkMessage(msg, "")
+		case <-session.Context().Done():
+			return nil
 		}
-
-		c.logger.Info().Interface("requet", event.Data).Msg("Got transaction request.")
-
-		to := common.HexToAddress(event.Data.To)
-		data := common.FromHex(event.Data.Data)
-
-		c.logger.Info().Interface("request", event.Data).Msg("Got meta-transaction request.")
-
-		err = c.manager.SendTx(session.Context(), &manager.TransactionRequest{ID: event.Data.ID, To: to, Data: data})
-		if err != nil {
-			c.logger.Err(err).Msg("Error sending transaction.")
-		}
-
-		session.MarkMessage(msg, "")
 	}
-	return nil
 }
 
 func New(ctx context.Context, name string, topic string, kafkaClient sarama.Client, logger *zerolog.Logger, ethClient *ethclient.Client, manager manager.Manager) error {

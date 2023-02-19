@@ -49,12 +49,13 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			var event shared.CloudEvent[TransactionEventData]
 			if err := json.Unmarshal(msg.Value, &event); err != nil {
 				logger.Err(err).Msg("Couldn't parse request, skipping.")
+				session.MarkMessage(msg, "")
 				continue
 			}
 
 			data := event.Data
 
-			logger.Info().Str("requestId", data.ID).Str("toAddress", hexutil.Encode(data.To.Bytes())).Msg("Got transaction request.")
+			logger.Info().Str("requestId", data.ID).Str("contract", data.To.Hex()).Msg("Got transaction request.")
 
 			req := &manager.TransactionRequest{ID: data.ID, To: data.To, Data: data.Data}
 

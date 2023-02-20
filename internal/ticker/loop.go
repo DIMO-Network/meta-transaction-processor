@@ -74,7 +74,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 			// Might have been kicked out of the canonical chain.
 			if !activeTx.MinedBlockNumber.IsZero() {
-				logger.Info().Msg("Transaction no longer mined.")
+				logger.Info().Msg("Transaction no longer in the canonical chain.")
 				activeTx.MinedBlockNumber = types.NewNullDecimal(nil)
 				activeTx.MinedBlockHash = null.Bytes{}
 				_, err := activeTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.MinedBlockNumber, cols.MinedBlockHash))
@@ -99,7 +99,9 @@ func (w *Watcher) Tick(ctx context.Context) error {
 				gasPrice = new(big.Int).Mul(big.NewInt(2), gasPrice)
 
 				oldGasPrice := activeTx.GasPrice.Int(nil)
-				newBar := new(big.Int).Mul(oldGasPrice, big.NewInt(110))
+
+				// Have to increase the old price by at least 10% to replace the transaction.
+				newBar := new(big.Int).Mul(oldGasPrice, big.NewInt(120))
 				newBar = new(big.Int).Div(newBar, big.NewInt(100))
 
 				if newBar.Cmp(gasPrice) > 0 {
@@ -149,7 +151,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 				activeTx.GasPrice = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(gasPrice, 0))
 				activeTx.Hash = null.BytesFrom(signedTx.Hash().Bytes())
 
-				_, err = activeTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.SubmittedBlockHash, cols.SubmittedBlockNumber, cols.Nonce, cols.GasPrice, cols.UpdatedAt, cols.Hash))
+				_, err = activeTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.BoostedBlockHash, cols.BoostedBlockNumber, cols.Nonce, cols.GasPrice, cols.UpdatedAt, cols.Hash))
 				if err != nil {
 					return err
 				}

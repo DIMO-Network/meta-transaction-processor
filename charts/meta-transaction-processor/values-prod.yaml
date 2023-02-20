@@ -2,7 +2,7 @@ replicaCount: 1
 image:
   repository: dimozone/meta-transaction-processor
   pullPolicy: IfNotPresent
-  tag: 0.1.4
+  tag: 0.2.0
 cronJob:
   enabled: false
 env:
@@ -11,7 +11,7 @@ env:
   CONFIRMATION_BLOCKS: 5
   PRIVATE_KEY_MODE: false
   IN_MEMORY_DB: false
-  BOOST_AFTER_BLOCKS: 30
+  BOOST_AFTER_BLOCKS: 10
   BLOCK_TIME: 2
   KAFKA_SERVERS: kafka-prod-dimo-kafka-kafka-brokers:9092
 ingress:

@@ -270,7 +270,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 	sendTx.GasPrice = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(gasPrice, 0))
 	sendTx.Hash = null.BytesFrom(signedTx.Hash().Bytes())
 
-	_, err = sendTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.Hash, cols.SubmittedBlockHash, cols.Hash, cols.SubmittedBlockNumber, cols.Nonce, cols.GasPrice, cols.UpdatedAt))
+	_, err = sendTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.SubmittedBlockHash, cols.Hash, cols.SubmittedBlockNumber, cols.Nonce, cols.GasPrice, cols.UpdatedAt))
 	if err != nil {
 		return err
 	}

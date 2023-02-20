@@ -55,6 +55,12 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 
 			data := event.Data
 
+			if len(data.ID) != 27 {
+				logger.Error().Msgf("Invalid KSUID %q.", data.ID)
+				session.MarkMessage(msg, "")
+				continue
+			}
+
 			logger = logger.With().Str("requestId", data.ID).Str("contract", data.To.Hex()).Logger()
 
 			logger.Info().Msg("Got transaction request.")

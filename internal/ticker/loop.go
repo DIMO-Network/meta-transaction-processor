@@ -132,8 +132,9 @@ func (w *Watcher) Tick(ctx context.Context) error {
 				activeTx.BoostedBlockHash = null.BytesFrom(signedTx.Hash().Bytes())
 				activeTx.Nonce = types.NewNullDecimal(new(decimal.Big).SetUint64(nonce))
 				activeTx.GasPrice = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(gasPrice, 0))
+				activeTx.Hash = null.BytesFrom(signedTx.Hash().Bytes())
 
-				_, err = activeTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.SubmittedBlockHash, cols.SubmittedBlockNumber, cols.Nonce, cols.GasPrice, cols.UpdatedAt))
+				_, err = activeTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.SubmittedBlockHash, cols.SubmittedBlockNumber, cols.Nonce, cols.GasPrice, cols.UpdatedAt, cols.Hash))
 				if err != nil {
 					return err
 				}
@@ -267,8 +268,9 @@ func (w *Watcher) Tick(ctx context.Context) error {
 	sendTx.SubmittedBlockHash = null.BytesFrom(signedTx.Hash().Bytes())
 	sendTx.Nonce = types.NewNullDecimal(new(decimal.Big).SetUint64(nonce))
 	sendTx.GasPrice = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(gasPrice, 0))
+	sendTx.Hash = null.BytesFrom(signedTx.Hash().Bytes())
 
-	_, err = sendTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.SubmittedBlockHash, cols.SubmittedBlockNumber, cols.Nonce, cols.GasPrice, cols.UpdatedAt))
+	_, err = sendTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.Hash, cols.SubmittedBlockHash, cols.Hash, cols.SubmittedBlockNumber, cols.Nonce, cols.GasPrice, cols.UpdatedAt))
 	if err != nil {
 		return err
 	}

@@ -10,7 +10,6 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog"
@@ -27,7 +26,6 @@ var requestsTotal = promauto.NewCounter(
 
 type consumer struct {
 	logger *zerolog.Logger
-	client *ethclient.Client
 	dbs    db.Store
 }
 

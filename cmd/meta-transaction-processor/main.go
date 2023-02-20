@@ -148,7 +148,7 @@ func createSender(ctx context.Context, settings *config.Settings, logger *zerolo
 		if err != nil {
 			return nil, err
 		}
-		logger.Info().Str("address", send.Address().Hex()).Str("keyId", settings.KMSKeyID).Msg("Loaded KMS account.")
+		logger.Info().Msgf("Loaded KMS key %s, address %s.", settings.KMSKeyID, send.Address().Hex())
 		return send, nil
 	}
 }

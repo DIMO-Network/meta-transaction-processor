@@ -64,7 +64,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 			return err
 		}
 	} else {
-		logger := logger.With().Str("requestId", activeTx.ID).Logger()
+		logger := logger.With().Str("requestId", activeTx.ID).Str("contract", common.BytesToAddress(activeTx.To).Hex()).Logger()
 
 		rec, err := w.client.TransactionReceipt(ctx, common.BytesToHash(activeTx.Hash.Bytes))
 		if err != nil {
@@ -239,7 +239,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		return err
 	}
 
-	logger = logger.With().Str("requestId", sendTx.ID).Logger()
+	logger = logger.With().Str("requestId", sendTx.ID).Str("contract", common.BytesToAddress(sendTx.To).Hex()).Logger()
 
 	nonce, err := w.client.PendingNonceAt(ctx, w.sender.Address())
 	if err != nil {

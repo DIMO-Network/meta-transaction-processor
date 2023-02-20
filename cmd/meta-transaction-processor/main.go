@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/config"
@@ -59,10 +60,7 @@ func main() {
 	pdb := db.NewDbConnectionFromSettings(ctx, &settings.DB, true)
 	pdb.WaitForDB(logger)
 
-	logger.Info().
-		Int64("confirmationBlocks", settings.ConfirmationBlocks).
-		Int64("boostAfterBlocks", settings.BoostAfterBlocks).
-		Msg("Loaded settings.")
+	logger.Info().Msgf("Loaded settings: %d second block time, %d blocks for confirmations, %d blocks before boosting.", settings.BlockTime, settings.ConfirmationBlocks, settings.BoostAfterBlocks)
 
 	confirmationBlocks := big.NewInt(settings.ConfirmationBlocks)
 
@@ -121,7 +119,7 @@ func main() {
 	monApp := serveMonitoring(settings.MonitoringPort, &logger)
 
 	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, os.Interrupt)
+	signal.Notify(sigterm, os.Interrupt, syscall.SIGTERM)
 
 	sig := <-sigterm
 	logger.Info().Str("signal", sig.String()).Msg("Received signal, terminating.")
@@ -177,7 +175,7 @@ func serveMonitoring(port string, logger *zerolog.Logger) *fiber.App {
 		}
 	}()
 
-	logger.Info().Str("port", port).Msg("Started monitoring web server.")
+	logger.Info().Msgf("Started monitoring web server on :%s.", port)
 
 	return monApp
 }

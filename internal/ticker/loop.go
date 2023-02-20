@@ -207,8 +207,10 @@ func (w *Watcher) Tick(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+			// Fall through to maybe submitting something else.
 		} else {
 			if rec.BlockHash != common.BytesToHash(activeTx.MinedBlockHash.Bytes) {
+				logger.Info().Msgf("Transaction moved from block %d to block %d.", activeTx.MinedBlockNumber.Int(nil), rec.BlockNumber)
 				activeTx.MinedBlockNumber = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(rec.BlockNumber, 0))
 				activeTx.MinedBlockHash = null.BytesFrom(rec.BlockHash.Bytes())
 
@@ -219,6 +221,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 				))
 				return err
 			}
+			// Otherwise, we're just waiting for more confirmations.
 			return nil
 		}
 	}

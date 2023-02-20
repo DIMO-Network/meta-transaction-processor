@@ -67,7 +67,8 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 				Data: data.Data,
 			}
 
-			if err := tx.Upsert(session.Context(), c.dbs.DBS().Writer, true, []string{models.MetaTransactionRequestColumns.ID}, boil.None(), boil.Infer()); err != nil {
+			// Don't really want to update.
+			if err := tx.Upsert(session.Context(), c.dbs.DBS().Writer, true, []string{models.MetaTransactionRequestColumns.ID}, boil.Whitelist(models.MetaTransactionRequestColumns.To, models.MetaTransactionRequestColumns.Data), boil.Infer()); err != nil {
 				logger.Err(err).Msg("Error saving transaction.")
 				return err
 			}

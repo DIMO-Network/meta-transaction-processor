@@ -55,6 +55,8 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		return err
 	}
 
+	logger := w.logger.With().Int64("block", head.Number().Int64()).Logger()
+
 	if activeTx, err := models.MetaTransactionRequests(
 		models.MetaTransactionRequestWhere.SubmittedBlockNumber.IsNotNull(),
 	).One(ctx, w.dbs.DBS().Reader); err != nil {
@@ -62,18 +64,31 @@ func (w *Watcher) Tick(ctx context.Context) error {
 			return err
 		}
 	} else {
+		logger := logger.With().Str("requestId", activeTx.ID).Logger()
+
 		rec, err := w.client.TransactionReceipt(ctx, common.BytesToHash(activeTx.Hash.Bytes))
 		if err != nil {
 			if err != ethereum.NotFound {
 				return err
 			}
 
-			lastSub := activeTx.SubmittedBlockNumber.Int(nil)
-			if !activeTx.BoostedBlockNumber.IsZero() {
-				lastSub = activeTx.BoostedBlockNumber.Int(nil)
+			// Might have been kicked out of the canonical chain.
+			if !activeTx.MinedBlockNumber.IsZero() {
+				logger.Info().Msg("Transaction no longer mined.")
+				activeTx.MinedBlockNumber = types.NewNullDecimal(nil)
+				activeTx.MinedBlockHash = null.Bytes{}
+				_, err := activeTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.MinedBlockNumber, cols.MinedBlockHash))
+				if err != nil {
+					return err
+				}
 			}
 
-			if new(big.Int).Sub(head.Number(), lastSub).Cmp(w.boostAfterBlocks) >= 0 {
+			lastSend := activeTx.SubmittedBlockNumber.Int(nil)
+			if !activeTx.BoostedBlockNumber.IsZero() {
+				lastSend = activeTx.BoostedBlockNumber.Int(nil)
+			}
+
+			if new(big.Int).Sub(head.Number(), lastSend).Cmp(w.boostAfterBlocks) >= 0 {
 				signer := eth_types.LatestSignerForChainID(w.chainID)
 
 				gasPrice, err := w.client.SuggestGasPrice(ctx)
@@ -139,6 +154,8 @@ func (w *Watcher) Tick(ctx context.Context) error {
 					return err
 				}
 
+				logger.Info().Msgf("Boosting transaction with new gas price %d and hash %s.", gasPrice, signedTx.Hash())
+
 				return w.client.SendTransaction(ctx, signedTx)
 			} else {
 				return nil
@@ -146,6 +163,8 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		}
 
 		if activeTx.MinedBlockNumber.IsZero() {
+			logger.Info().Msgf("Transaction mined in block %d.", rec.BlockNumber)
+
 			// We discount the possibility of sending mining and confirmation in the same tick.
 			w.prod.Mined(&status.MinedMsg{ID: activeTx.ID, Hash: common.BytesToHash(activeTx.Hash.Bytes)})
 
@@ -179,6 +198,8 @@ func (w *Watcher) Tick(ctx context.Context) error {
 				Successful: rec.Status == 1,
 				Logs:       logs,
 			}
+
+			logger.Info().Msg("Transaction confirmed.")
 
 			w.prod.Confirmed(msg)
 
@@ -214,6 +235,8 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		}
 		return err
 	}
+
+	logger = logger.With().Str("requestId", sendTx.ID).Logger()
 
 	nonce, err := w.client.PendingNonceAt(ctx, w.sender.Address())
 	if err != nil {
@@ -274,6 +297,8 @@ func (w *Watcher) Tick(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	logger.Info().Msgf("Submitting transaction with nonce %d and hash %s.", nonce, signedTx.Hash())
 
 	err = w.client.SendTransaction(ctx, signedTx)
 	if err != nil {

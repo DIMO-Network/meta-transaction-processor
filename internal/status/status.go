@@ -86,8 +86,6 @@ func (p *kafkaProducer) Confirmed(msg *ConfirmedMsg) {
 		return
 	}
 
-	p.logger.Info().Interface("event", event).Msg("Emitting event.")
-
 	_, _, err = p.kp.SendMessage(
 		&sarama.ProducerMessage{
 			Topic: p.topic,
@@ -116,8 +114,6 @@ func (p *kafkaProducer) Submitted(msg *SubmittedMsg) {
 			},
 		},
 	}
-
-	p.logger.Info().Interface("event", event).Msg("Emitting event.")
 
 	bs, err := json.Marshal(event)
 	if err != nil {
@@ -153,8 +149,6 @@ func (p *kafkaProducer) Mined(msg *MinedMsg) {
 			},
 		},
 	}
-
-	p.logger.Info().Interface("event", event).Msg("Emitting event.")
 
 	bs, err := json.Marshal(event)
 	if err != nil {

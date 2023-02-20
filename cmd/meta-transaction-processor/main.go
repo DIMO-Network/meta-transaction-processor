@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"math/big"
 	"os"
 	"os/signal"
@@ -11,10 +10,8 @@ import (
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/config"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/consumer"
-	"github.com/DIMO-Network/meta-transaction-processor/internal/manager"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/sender"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
-	"github.com/DIMO-Network/meta-transaction-processor/internal/storage"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/ticker"
 	"github.com/DIMO-Network/shared"
 	"github.com/DIMO-Network/shared/db"
@@ -57,31 +54,19 @@ func main() {
 		return
 	}
 
-	gasPriceFactor, err := getGasPriceFactor(&settings)
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to set gas price factor.")
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 
-	var store storage.Storage
-
-	if settings.InMemoryDB {
-		store = storage.NewMemStorage()
-	} else {
-		pdb := db.NewDbConnectionFromSettings(ctx, &settings.DB, true)
-		pdb.WaitForDB(logger)
-
-		store = storage.NewPGStorage(pdb.DBS)
-	}
+	pdb := db.NewDbConnectionFromSettings(ctx, &settings.DB, true)
+	pdb.WaitForDB(logger)
 
 	logger.Info().
-		Int64("chainId", settings.EthereumChainID).
 		Int64("confirmationBlocks", settings.ConfirmationBlocks).
-		Str("gasPriceFactor", settings.GasPriceFactor).
+		Int64("boostAfterBlocks", settings.BoostAfterBlocks).
 		Msg("Loaded settings.")
 
 	confirmationBlocks := big.NewInt(settings.ConfirmationBlocks)
+
+	boostAfterBlocks := big.NewInt(settings.BoostAfterBlocks)
 
 	send, err := createSender(ctx, &settings, &logger)
 	if err != nil {
@@ -103,21 +88,22 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to create Kafka transaction status producer.")
 	}
 
-	chainID := big.NewInt(settings.EthereumChainID)
-
-	manager := manager.New(ethClient, chainID, send, store, &logger, sprod, gasPriceFactor)
+	chainID, err := ethClient.ChainID(ctx)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Couldn't retrieve chain id.")
+	}
 
 	go func() {
-		consumer.New(ctx, "meta-transaction-processor", settings.TransactionRequestTopic, kafkaClient, &logger, ethClient, manager)
+		consumer.New(ctx, "meta-transaction-processor", settings.TransactionRequestTopic, kafkaClient, &logger, pdb)
 	}()
 
 	tickerDone := make(chan struct{})
 
-	watcher := ticker.New(&logger, store, manager, sprod, confirmationBlocks)
+	watcher := ticker.New(&logger, sprod, confirmationBlocks, boostAfterBlocks, pdb, ethClient, chainID, send)
 
 	go func() {
 		defer close(tickerDone)
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(time.Duration(settings.BlockTime) * time.Second)
 		for {
 			select {
 			case <-ticker.C:
@@ -167,23 +153,6 @@ func createSender(ctx context.Context, settings *config.Settings, logger *zerolo
 		logger.Info().Str("address", send.Address().Hex()).Str("keyId", settings.KMSKeyID).Msg("Loaded KMS account.")
 		return send, nil
 	}
-}
-
-var ratOne = big.NewRat(1, 1)
-
-func getGasPriceFactor(settings *config.Settings) (*big.Rat, error) {
-	if gpfStr := settings.GasPriceFactor; gpfStr != "" {
-		gpf, ok := new(big.Rat).SetString(gpfStr)
-		if !ok {
-			return nil, errors.New("failed to parse into big.Rat")
-		}
-		if gpf.Cmp(ratOne) < 0 {
-			return nil, errors.New("factor less than 1")
-		}
-		return gpf, nil
-	}
-
-	return ratOne, nil
 }
 
 func createKafka(settings *config.Settings) (sarama.Client, error) {

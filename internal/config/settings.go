@@ -27,10 +27,6 @@ type Settings struct {
 	// blockchain interactions.
 	EthereumRPCURL string `yaml:"ETHEREUM_RPC_URL"`
 
-	// EthereumChainID is the chain ID of the target blockchain. One standard
-	// list of these is https://chainlist.org.
-	EthereumChainID int64 `yaml:"ETHEREUM_CHAIN_ID"`
-
 	// PrivateKeyMode is true when the private key for the sender is being injected
 	// into the environment. This should never be used in production.
 	PrivateKeyMode bool `yaml:"PRIVATE_KEY_MODE"`
@@ -47,10 +43,10 @@ type Settings struct {
 	// transaction confirmed.
 	ConfirmationBlocks int64 `yaml:"CONFIRMATION_BLOCKS"`
 
-	InMemoryDB bool `yaml:"IN_MEMORY_DB"`
+	BoostAfterBlocks int64 `yaml:"BOOST_AFTER_BLOCKS"`
 
 	DB db.Settings `yaml:"DB"`
 
-	// GasPriceFactor is multiplied by the gas price when submitting transactions.
-	GasPriceFactor string `yaml:"GAS_PRICE_FACTOR"`
+	// Average block time, in seconds.
+	BlockTime int `yaml:"BLOCK_TIME"`
 }

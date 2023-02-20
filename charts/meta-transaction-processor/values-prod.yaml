@@ -11,6 +11,8 @@ env:
   CONFIRMATION_BLOCKS: 10
   PRIVATE_KEY_MODE: false
   IN_MEMORY_DB: false
+  BOOST_AFTER_BLOCKS: 20
+  BLOCK_TIME: 2
   KAFKA_SERVERS: kafka-prod-dimo-kafka-kafka-brokers:9092
 ingress:
   enabled: false

@@ -8,16 +8,16 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-type keySender struct {
+type privateKeySender struct {
 	privateKey *ecdsa.PrivateKey
 	address    common.Address
 }
 
-func (a *keySender) Address() common.Address {
+func (a *privateKeySender) Address() common.Address {
 	return a.address
 }
 
-func (a *keySender) Sign(_ context.Context, hash common.Hash) ([]byte, error) {
+func (a *privateKeySender) Sign(_ context.Context, hash common.Hash) ([]byte, error) {
 	return crypto.Sign(hash[:], a.privateKey)
 }
 
@@ -30,5 +30,5 @@ func FromKey(hexPriv string) (Sender, error) {
 
 	address := crypto.PubkeyToAddress(priv.PublicKey)
 
-	return &keySender{privateKey: priv, address: address}, nil
+	return &privateKeySender{privateKey: priv, address: address}, nil
 }

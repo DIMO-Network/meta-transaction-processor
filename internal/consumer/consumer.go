@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/DIMO-Network/meta-transaction-processor/internal/manager"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/models"
 	"github.com/DIMO-Network/shared"
+	"github.com/DIMO-Network/shared/db"
 	"github.com/Shopify/sarama"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -13,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog"
+	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
 var requestsTotal = promauto.NewCounter(
@@ -24,9 +26,9 @@ var requestsTotal = promauto.NewCounter(
 )
 
 type consumer struct {
-	logger  *zerolog.Logger
-	client  *ethclient.Client
-	manager manager.Manager
+	logger *zerolog.Logger
+	client *ethclient.Client
+	dbs    db.Store
 }
 
 type TransactionEventData struct {
@@ -55,13 +57,19 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 
 			data := event.Data
 
-			logger.Info().Str("requestId", data.ID).Str("contract", data.To.Hex()).Msg("Got transaction request.")
+			logger = logger.With().Str("requestId", data.ID).Str("contract", data.To.Hex()).Logger()
 
-			req := &manager.TransactionRequest{ID: data.ID, To: data.To, Data: data.Data}
+			logger.Info().Msg("Got transaction request.")
 
-			err := c.manager.SendTx(session.Context(), req)
-			if err != nil {
-				logger.Err(err).Msg("Error sending transaction.")
+			tx := models.MetaTransactionRequest{
+				ID:   data.ID,
+				To:   data.To.Bytes(),
+				Data: data.Data,
+			}
+
+			if err := tx.Upsert(session.Context(), c.dbs.DBS().Writer, true, []string{models.MetaTransactionRequestColumns.ID}, boil.None(), boil.Infer()); err != nil {
+				logger.Err(err).Msg("Error saving transaction.")
+				return err
 			}
 
 			session.MarkMessage(msg, "")
@@ -71,13 +79,13 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 	}
 }
 
-func New(ctx context.Context, name string, topic string, kafkaClient sarama.Client, logger *zerolog.Logger, ethClient *ethclient.Client, manager manager.Manager) error {
+func New(ctx context.Context, name string, topic string, kafkaClient sarama.Client, logger *zerolog.Logger, dbs db.Store) error {
 	group, err := sarama.NewConsumerGroupFromClient(name, kafkaClient)
 	if err != nil {
 		return err
 	}
 
-	consumer := &consumer{logger: logger, client: ethClient, manager: manager}
+	consumer := &consumer{logger: logger, dbs: dbs}
 
 	for {
 		err := group.Consume(ctx, []string{topic}, consumer)

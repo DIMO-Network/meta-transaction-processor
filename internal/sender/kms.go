@@ -87,7 +87,7 @@ func fixLen(in []byte) []byte {
 	outStart := 0
 	inLen := len(in)
 	inStart := 0
-	
+
 	if inLen > 32 {
 		inStart = inLen - 32
 	} else if inLen < 32 {

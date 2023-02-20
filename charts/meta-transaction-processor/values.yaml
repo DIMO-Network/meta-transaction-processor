@@ -29,6 +29,8 @@ env:
   PRIVATE_KEY_MODE: false
   IN_MEMORY_DB: false
   CONFIRMATION_BLOCKS: 2
+  BOOST_AFTER_BLOCKS: 10
+  BLOCK_TIME: 5
   KAFKA_SERVERS: kafka-dev-dimo-kafka-kafka-brokers:9092
   TRANSACTION_REQUEST_TOPIC: topic.transaction.request.send
   TRANSACTION_STATUS_TOPIC: topic.transaction.request.status

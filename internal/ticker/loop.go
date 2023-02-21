@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	eth_types "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -266,6 +267,14 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 	gasLimit, err := w.client.EstimateGas(ctx, callMsg)
 	if err != nil {
+		if rpcErr, ok := err.(rpc.Error); ok {
+			if rpcErr.ErrorCode() == 3 {
+				w.prod.Failed(&status.SubmittedMsg{ID: sendTx.ID})
+
+				_, err := sendTx.Delete(ctx, w.dbs.DBS().Writer)
+				return err
+			}
+		}
 		return fmt.Errorf("failed to estimate gas usage: %w", err)
 	}
 

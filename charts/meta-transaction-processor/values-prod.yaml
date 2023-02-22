@@ -2,7 +2,7 @@ replicaCount: 1
 image:
   repository: dimozone/meta-transaction-processor
   pullPolicy: IfNotPresent
-  tag: 0.2.4
+  tag: 0.2.5
 cronJob:
   enabled: false
 env:

@@ -21,6 +21,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/burdiyan/kafkautil"
@@ -105,9 +107,10 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
-				err := watcher.Tick(ctx)
-				if err != nil {
-					log.Err(err).Msg("Error on poll.")
+				ticksTotal.Inc()
+				if err := watcher.Tick(ctx); err != nil {
+					tickErrorsTotal.Inc()
+					log.Err(err).Msg("Error during tick.")
 				}
 			case <-ctx.Done():
 				ticker.Stop()
@@ -128,6 +131,16 @@ func main() {
 	monApp.Shutdown()
 	<-tickerDone
 }
+
+var ticksTotal = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "meta_transaction_processor",
+	Name:      "ticks_total",
+})
+
+var tickErrorsTotal = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "meta_transaction_processor",
+	Name:      "tick_errors_total",
+})
 
 func createSender(ctx context.Context, settings *config.Settings, logger *zerolog.Logger) (sender.Sender, error) {
 	if settings.PrivateKeyMode {

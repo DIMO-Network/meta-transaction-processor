@@ -15,6 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	eth_types "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -49,11 +51,18 @@ func New(logger *zerolog.Logger, prod status.Producer, confirmationBlocks, boost
 
 var cols = models.MetaTransactionRequestColumns
 
+var latestBlock = promauto.NewGauge(prometheus.GaugeOpts{
+	Namespace: "meta_transaction_processor",
+	Name:      "latest_block",
+})
+
 func (w *Watcher) Tick(ctx context.Context) error {
 	head, err := w.client.BlockByNumber(ctx, nil)
 	if err != nil {
 		return err
 	}
+
+	latestBlock.Set(float64(head.NumberU64()))
 
 	logger := w.logger.With().Int64("block", head.Number().Int64()).Logger()
 

@@ -4,9 +4,6 @@ MONITORING_PORT: 8888
 # Hardhat default port.
 ETHEREUM_RPC_URL: http://127.0.0.1:8545
 
-# Hardhat default chain id.
-ETHEREUM_CHAIN_ID: 31337
-
 # Use the next variable. Never use this in production!
 PRIVATE_KEY_MODE: true
 

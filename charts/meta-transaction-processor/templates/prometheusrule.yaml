@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: {{ include "meta-transaction-processor.fullname" . }}-alerts
+  labels:
+    {{- include "meta-transaction-processor.labels" . | nindent 4 }}
+spec:
+  groups:
+  - name: meta-transaction-processor
+    rules:
+    - alert: TickFailures
+      expr: sum(rate(meta_transaction_processor_tick_errors_total{namespace="$namespace"}[2m])) > 0
+      for: 2m
+      labels:
+        severity: critical
+        namespace: {{ .Release.Namespace }}
+      annotations:
+        summary: "Tick failures"
+        description: 'Meta-transaction ticks have been erroring for more than 2 minutes.'

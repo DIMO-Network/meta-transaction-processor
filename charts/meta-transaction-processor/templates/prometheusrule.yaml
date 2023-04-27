@@ -10,7 +10,7 @@ spec:
   - name: meta-transaction-processor
     rules:
     - alert: TickFailures
-      expr: sum(rate(meta_transaction_processor_tick_errors_total{namespace="$namespace"}[2m])) > 0
+      expr: sum(rate(meta_transaction_processor_tick_errors_total{namespace="{{ .Release.Namespace }}"}[2m])) > 0
       for: 2m
       labels:
         severity: critical

@@ -22,6 +22,8 @@ KAFKA_SERVERS: 127.0.0.1:9092
 TRANSACTION_REQUEST_TOPIC: topic.transaction.request.send
 TRANSACTION_STATUS_TOPIC: topic.transaction.request.status
 
+BLOCK_TIME: 2
+
 DB:
   USER: dimo
   PASSWORD: dimo

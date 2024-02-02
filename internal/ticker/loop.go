@@ -56,6 +56,13 @@ var latestBlock = promauto.NewGauge(prometheus.GaugeOpts{
 	Name:      "latest_block",
 })
 
+var submittedTxBlockAge = promauto.NewGauge(
+	prometheus.GaugeOpts{
+		Namespace: "meta_transaction_processor",
+		Name:      "submitted_tx_block_age",
+	},
+)
+
 func (w *Watcher) Tick(ctx context.Context) error {
 	head, err := w.client.BlockByNumber(ctx, nil)
 	if err != nil {
@@ -73,6 +80,10 @@ func (w *Watcher) Tick(ctx context.Context) error {
 			return err
 		}
 	} else {
+		// We have a submitted but not confirmed (it would have been deleted) transaction.
+		subBlockNum, _ := activeTx.SubmittedBlockNumber.Int64()
+		submittedTxBlockAge.Set(float64(head.Number().Int64() - subBlockNum))
+
 		logger := logger.With().Str("requestId", activeTx.ID).Str("contract", common.BytesToAddress(activeTx.To).Hex()).Logger()
 
 		rec, err := w.client.TransactionReceipt(ctx, common.BytesToHash(activeTx.Hash.Bytes))
@@ -238,6 +249,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 	}
 
 	// At this point, there's nothing in the table that's been submitted.
+	submittedTxBlockAge.Set(0)
 
 	sendTx, err := models.MetaTransactionRequests(
 		qm.OrderBy(models.MetaTransactionRequestColumns.ID+" ASC"),

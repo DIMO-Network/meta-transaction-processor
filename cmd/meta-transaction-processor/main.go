@@ -103,7 +103,10 @@ func main() {
 	}
 
 	go func() {
-		consumer.New(ctx, "meta-transaction-processor", settings.TransactionRequestTopic, kafkaClient, &logger, pdb)
+		err := consumer.New(ctx, "meta-transaction-processor", settings.TransactionRequestTopic, kafkaClient, &logger, pdb)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("Failed to create Kafka consumer.")
+		}
 	}()
 
 	tickerDone := make(chan struct{})
@@ -139,7 +142,10 @@ func main() {
 	logger.Info().Str("signal", sig.String()).Msg("Received signal, terminating.")
 
 	cancel()
-	monApp.Shutdown()
+	err = monApp.Shutdown()
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to shutdown monitoring web server.")
+	}
 	<-tickerDone
 }
 

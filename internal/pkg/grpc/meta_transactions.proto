@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option go_package = "github.com/DIMO-Network/meta-transaction-processor/pkg/grpc";
+
+import "google/protobuf/empty.proto";
+
+package metatransactions;
+
+message CleanStuckMetaTransactionsResponse {
+    string id = 1;
+  }
+
+service MetaTransactionService {
+  rpc CleanStuckMetaTransactions(google.protobuf.Empty) returns (CleanStuckMetaTransactionsResponse);
+}

@@ -203,7 +203,7 @@ func serveMonitoring(port string, logger *zerolog.Logger) *fiber.App {
 func startGRPCServer(settings *config.Settings, logger *zerolog.Logger, dbs db.Store) {
 	listen, err := net.Listen("tcp", fmt.Sprintf(":%s", settings.GRPCPort))
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to listen.")
+		logger.Fatal().Err(err).Msg("Failed to listen for grpc server.")
 	}
 	gp := rpc.GRPCPanicker{Logger: logger}
 	server := grpc.NewServer(

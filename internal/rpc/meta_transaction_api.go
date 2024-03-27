@@ -6,7 +6,7 @@ import (
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/config"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/models"
-	pb "github.com/DIMO-Network/meta-transaction-processor/internal/pkg/grpc"
+	pb "github.com/DIMO-Network/meta-transaction-processor/pkg/grpc"
 	"github.com/DIMO-Network/shared/db"
 	"github.com/rs/zerolog"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"

@@ -49,4 +49,6 @@ type Settings struct {
 
 	// Average block time, in seconds.
 	BlockTime int `yaml:"BLOCK_TIME"`
+
+	GRPCPort string `yaml:"GRPC_PORT"`
 }

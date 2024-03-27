@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"os/signal"
 	"strings"
@@ -11,19 +13,26 @@ import (
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/config"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/consumer"
+	appmetrics "github.com/DIMO-Network/meta-transaction-processor/internal/metrics"
+	mtpgrpc "github.com/DIMO-Network/meta-transaction-processor/internal/pkg/grpc"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/rpc"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/sender"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/ticker"
 	"github.com/DIMO-Network/shared"
 	"github.com/DIMO-Network/shared/db"
+	"github.com/DIMO-Network/shared/middleware/metrics"
 	"github.com/Shopify/sarama"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"google.golang.org/grpc"
 
 	"github.com/burdiyan/kafkautil"
 	"github.com/ethereum/go-ethereum/common"
@@ -94,7 +103,10 @@ func main() {
 	}
 
 	go func() {
-		consumer.New(ctx, "meta-transaction-processor", settings.TransactionRequestTopic, kafkaClient, &logger, pdb)
+		err := consumer.New(ctx, "meta-transaction-processor", settings.TransactionRequestTopic, kafkaClient, &logger, pdb)
+		if err != nil {
+			logger.Fatal().Err(err).Msg("Failed to create Kafka consumer.")
+		}
 	}()
 
 	tickerDone := make(chan struct{})
@@ -107,9 +119,9 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
-				ticksTotal.Inc()
+				appmetrics.TicksTotal.Inc()
 				if err := watcher.Tick(ctx); err != nil {
-					tickErrorsTotal.Inc()
+					appmetrics.TickErrorsTotal.Inc()
 					log.Err(err).Msg("Error during tick.")
 				}
 			case <-ctx.Done():
@@ -118,6 +130,8 @@ func main() {
 			}
 		}
 	}()
+
+	go startGRPCServer(&settings, &logger, pdb)
 
 	monApp := serveMonitoring(settings.MonitoringPort, &logger)
 
@@ -128,19 +142,12 @@ func main() {
 	logger.Info().Str("signal", sig.String()).Msg("Received signal, terminating.")
 
 	cancel()
-	monApp.Shutdown()
+	err = monApp.Shutdown()
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to shutdown monitoring web server.")
+	}
 	<-tickerDone
 }
-
-var ticksTotal = promauto.NewCounter(prometheus.CounterOpts{
-	Namespace: "meta_transaction_processor",
-	Name:      "ticks_total",
-})
-
-var tickErrorsTotal = promauto.NewCounter(prometheus.CounterOpts{
-	Namespace: "meta_transaction_processor",
-	Name:      "tick_errors_total",
-})
 
 func createSender(ctx context.Context, settings *config.Settings, logger *zerolog.Logger) (sender.Sender, error) {
 	if settings.PrivateKeyMode {
@@ -191,4 +198,27 @@ func serveMonitoring(port string, logger *zerolog.Logger) *fiber.App {
 	logger.Info().Msgf("Started monitoring web server on :%s.", port)
 
 	return monApp
+}
+
+func startGRPCServer(settings *config.Settings, logger *zerolog.Logger, dbs db.Store) {
+	listen, err := net.Listen("tcp", fmt.Sprintf(":%s", settings.GRPCPort))
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to listen for grpc server.")
+	}
+	gp := rpc.GRPCPanicker{Logger: logger}
+	server := grpc.NewServer(
+		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+			metrics.GRPCMetricsAndLogMiddleware(logger),
+			grpc_ctxtags.UnaryServerInterceptor(),
+			grpc_prometheus.UnaryServerInterceptor,
+			recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(gp.GRPCPanicRecoveryHandler)),
+		)),
+		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+	)
+
+	mtpgrpc.RegisterMetaTransactionServiceServer(server, rpc.NewMetaTransactionService(settings, logger, dbs))
+
+	if err := server.Serve(listen); err != nil {
+		logger.Fatal().Err(err).Msg("gRPC server terminated unexpectedly")
+	}
 }

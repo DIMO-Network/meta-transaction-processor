@@ -20,25 +20,61 @@ var secp256k1N = crypto.S256().Params().N
 var secp256k1HalfN = new(big.Int).Div(secp256k1N, big.NewInt(2))
 
 type kmsSender struct {
-	keyID   string
-	pub     []byte
-	address common.Address
-	client  *kms.Client
+	awsKeyID  string
+	publicKey []byte
+	address   common.Address
+	kmsClient *kms.Client
+}
+
+// See https://datatracker.ietf.org/doc/html/rfc5280#section-4.1
+type subjectPublicKeyInfo struct {
+	Algorithm        pkix.AlgorithmIdentifier
+	SubjectPublicKey asn1.BitString
+}
+
+func FromKMS(ctx context.Context, client *kms.Client, keyID string) (Sender, error) {
+	pubResp, err := client.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: aws.String(keyID)})
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve public key: %w", err)
+	}
+
+	var pki subjectPublicKeyInfo
+	_, err = asn1.Unmarshal(pubResp.PublicKey, &pki)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal DER: %w", err)
+	}
+
+	pub, err := crypto.UnmarshalPubkey(pki.SubjectPublicKey.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	pubBytes := secp256k1.S256().Marshal(pub.X, pub.Y)
+
+	addr := crypto.PubkeyToAddress(*pub)
+
+	return &kmsSender{awsKeyID: keyID, publicKey: pubBytes, address: addr, kmsClient: client}, nil
 }
 
 func (s *kmsSender) Address() common.Address {
 	return s.address
 }
 
+// See https://datatracker.ietf.org/doc/html/rfc3279#section-2.2.3
+type ecdsaSigValue struct {
+	R *big.Int
+	S *big.Int
+}
+
 func (s *kmsSender) Sign(ctx context.Context, hash common.Hash) ([]byte, error) {
 	signInput := &kms.SignInput{
-		KeyId:            aws.String(s.keyID),
+		KeyId:            aws.String(s.awsKeyID),
 		SigningAlgorithm: types.SigningAlgorithmSpecEcdsaSha256,
 		MessageType:      types.MessageTypeDigest,
 		Message:          hash[:],
 	}
 
-	out, err := s.client.Sign(ctx, signInput)
+	out, err := s.kmsClient.Sign(ctx, signInput)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +102,7 @@ func (s *kmsSender) Sign(ctx context.Context, hash common.Hash) ([]byte, error) 
 		return nil, err
 	}
 
-	if bytes.Equal(recPub, s.pub) {
+	if bytes.Equal(recPub, s.publicKey) {
 		return fullSig, nil
 	}
 
@@ -76,45 +112,9 @@ func (s *kmsSender) Sign(ctx context.Context, hash common.Hash) ([]byte, error) 
 		return nil, err
 	}
 
-	if bytes.Equal(recPub, s.pub) {
+	if bytes.Equal(recPub, s.publicKey) {
 		return fullSig, nil
 	}
 
 	return nil, fmt.Errorf("couldn't choose a working V from the returned R and S")
-}
-
-// See https://datatracker.ietf.org/doc/html/rfc5280#section-4.1
-type subjectPublicKeyInfo struct {
-	Algorithm        pkix.AlgorithmIdentifier
-	SubjectPublicKey asn1.BitString
-}
-
-// See https://datatracker.ietf.org/doc/html/rfc3279#section-2.2.3
-type ecdsaSigValue struct {
-	R *big.Int
-	S *big.Int
-}
-
-func FromKMS(ctx context.Context, client *kms.Client, keyID string) (Sender, error) {
-	pubResp, err := client.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: aws.String(keyID)})
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve public key: %w", err)
-	}
-
-	var pki subjectPublicKeyInfo
-	_, err = asn1.Unmarshal(pubResp.PublicKey, &pki)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal DER: %w", err)
-	}
-
-	pub, err := crypto.UnmarshalPubkey(pki.SubjectPublicKey.Bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	pubBytes := secp256k1.S256().Marshal(pub.X, pub.Y)
-
-	addr := crypto.PubkeyToAddress(*pub)
-
-	return &kmsSender{keyID: keyID, pub: pubBytes, address: addr, client: client}, nil
 }

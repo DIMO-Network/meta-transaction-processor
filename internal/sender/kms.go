@@ -1,6 +1,7 @@
 package sender
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -13,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"golang.org/x/exp/slices"
 )
 
 var secp256k1N = crypto.S256().Params().N
@@ -43,86 +43,71 @@ func (s *kmsSender) Sign(ctx context.Context, hash common.Hash) ([]byte, error) 
 		return nil, err
 	}
 
-	sig := new(ecdsaSigFields)
-	_, err = asn1.Unmarshal(out.Signature, sig)
+	var sigVal ecdsaSigValue
+	_, err = asn1.Unmarshal(out.Signature, &sigVal)
 	if err != nil {
 		return nil, err
 	}
 
-	sigR, sigS := sig.R.Bytes, sig.S.Bytes
+	sigS := sigVal.S
 
-	// Correct S, if necessary, so that it's in the lower half of the group.
-	sigSNum := new(big.Int).SetBytes(sigS)
-	if sigSNum.Cmp(secp256k1HalfN) > 0 {
-		sigS = new(big.Int).Sub(secp256k1N, sigSNum).Bytes()
+	if sigS.Cmp(secp256k1HalfN) > 0 {
+		sigS = new(big.Int).Sub(secp256k1N, sigS)
 	}
+
+	fullSig := make([]byte, 65)
 
 	// Determine whether V ought to be 0 or 1.
-	sigRS := append(fixLen(sigR), fixLen(sigS)...)
-	sigRSV := append(sigRS, 0)
+	sigVal.R.FillBytes(fullSig[:32])
+	sigS.FillBytes(fullSig[32:64])
 
-	recPub, err := crypto.Ecrecover(hash[:], sigRSV)
+	recPub, err := crypto.Ecrecover(hash[:], fullSig)
 	if err != nil {
 		return nil, err
 	}
 
-	if slices.Equal(recPub, s.pub) {
-		return sigRSV, nil
+	if bytes.Equal(recPub, s.pub) {
+		return fullSig, nil
 	}
 
-	sigRSV = append(sigRS, 1)
-	recPub, err = crypto.Ecrecover(hash[:], sigRSV)
+	fullSig[64] = 1
+	recPub, err = crypto.Ecrecover(hash[:], fullSig)
 	if err != nil {
 		return nil, err
 	}
 
-	if slices.Equal(recPub, s.pub) {
-		return sigRSV, nil
+	if bytes.Equal(recPub, s.pub) {
+		return fullSig, nil
 	}
 
 	return nil, fmt.Errorf("couldn't choose a working V from the returned R and S")
 }
 
-func fixLen(in []byte) []byte {
-	outStart := 0
-	inLen := len(in)
-	inStart := 0
-
-	if inLen > 32 {
-		inStart = inLen - 32
-	} else if inLen < 32 {
-		outStart = 32 - inLen
-	}
-
-	out := make([]byte, common.HashLength)
-	copy(out[outStart:], in[inStart:])
-	return out
-}
-
-type publicKeyFields struct {
+// See https://datatracker.ietf.org/doc/html/rfc5280#section-4.1
+type subjectPublicKeyInfo struct {
 	Algorithm        pkix.AlgorithmIdentifier
 	SubjectPublicKey asn1.BitString
 }
 
-type ecdsaSigFields struct {
-	R asn1.RawValue
-	S asn1.RawValue
+// See https://datatracker.ietf.org/doc/html/rfc3279#section-2.2.3
+type ecdsaSigValue struct {
+	R *big.Int
+	S *big.Int
 }
 
 func FromKMS(ctx context.Context, client *kms.Client, keyID string) (Sender, error) {
 	pubResp, err := client.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: aws.String(keyID)})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to retrieve public key: %w", err)
 	}
 
-	cert := new(publicKeyFields)
-
-	_, err = asn1.Unmarshal(pubResp.PublicKey, cert)
+	var pki subjectPublicKeyInfo
+	_, err = asn1.Unmarshal(pubResp.PublicKey, &pki)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal DER: %w", err)
 	}
 
-	pub, err := crypto.UnmarshalPubkey(cert.SubjectPublicKey.Bytes)
+	pub, err := crypto.UnmarshalPubkey(pki.SubjectPublicKey.Bytes)
 	if err != nil {
 		return nil, err
 	}

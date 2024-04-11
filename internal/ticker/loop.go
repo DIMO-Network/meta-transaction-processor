@@ -66,19 +66,21 @@ var submittedTxBlockAge = promauto.NewGauge(
 func (w *Watcher) Tick(ctx context.Context) error {
 	head, err := w.client.BlockByNumber(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to retrieve latest block: %w", err)
 	}
 
 	latestBlock.Set(float64(head.NumberU64()))
 
 	logger := w.logger.With().Int64("block", head.Number().Int64()).Logger()
 
+	// There's at most one submitted transaction.
 	if activeTx, err := models.MetaTransactionRequests(
 		models.MetaTransactionRequestWhere.SubmittedBlockNumber.IsNotNull(),
 	).One(ctx, w.dbs.DBS().Reader); err != nil {
 		if err != sql.ErrNoRows {
 			return err
 		}
+		// If there's no submitted transaction, fall through to trying to submit something new.
 	} else {
 		// We have a submitted but not confirmed (it would have been deleted) transaction.
 		subBlockNum, _ := activeTx.SubmittedBlockNumber.Int64()

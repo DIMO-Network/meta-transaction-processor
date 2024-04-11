@@ -36,6 +36,7 @@ type Log struct {
 	Data    hexutil.Bytes  `json:"data"`
 }
 
+//go:generate mockgen -source status.go -destination ../mocks/status_client.go -package mocks
 type Producer interface {
 	Submitted(msg *SubmittedMsg)
 	Mined(msg *MinedMsg)

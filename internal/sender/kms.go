@@ -40,13 +40,13 @@ func (s *kmsSender) Sign(ctx context.Context, hash common.Hash) ([]byte, error) 
 
 	signOutput, err := s.client.Sign(ctx, signInput)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error from KMS Sign call: %w", err)
 	}
 
 	var signOutputSig ecdsaSigValue
 	_, err = asn1.Unmarshal(signOutput.Signature, &signOutputSig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal Signature ASN.1: %w", err)
 	}
 
 	// Correct S, if necessary, so that it's in the lower half of the group.

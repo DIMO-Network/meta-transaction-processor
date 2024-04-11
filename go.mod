@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.26.1
 	github.com/aws/aws-sdk-go-v2/service/kms v1.30.1
 	github.com/docker/go-connections v0.5.0
-	github.com/ericlagergren/decimal v0.0.0-20240305081647-93d586550569
+	github.com/ericlagergren/decimal v0.0.0-20190420051523-6335edbaa640
 	github.com/friendsofgo/errors v0.9.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
@@ -150,7 +150,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.30.0
 	github.com/testcontainers/testcontainers-go/modules/localstack v0.30.0
 	golang.org/x/crypto v0.22.0 // indirect
-	golang.org/x/exp v0.0.0-20240409090435-93d18d7e34b8
+	golang.org/x/exp v0.0.0-20240409090435-93d18d7e34b8 // indirect
 	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect
 )

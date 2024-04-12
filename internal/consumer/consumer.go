@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"encoding/json"
+	"math/rand"
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/models"
 	"github.com/DIMO-Network/shared"
@@ -67,9 +68,10 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 			logger.Info().Msg("Got transaction request.")
 
 			tx := models.MetaTransactionRequest{
-				ID:   data.ID,
-				To:   data.To.Bytes(),
-				Data: data.Data,
+				ID:          data.ID,
+				To:          data.To.Bytes(),
+				Data:        data.Data,
+				WalletIndex: rand.Intn(c.numWallets),
 			}
 
 			// Don't really want to update.

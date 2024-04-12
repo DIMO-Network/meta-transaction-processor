@@ -170,9 +170,12 @@ func (s *ProcessorTestSuite) TestSubmitNew() {
 
 	backend.Commit()
 	err = w.Tick(ctx)
+	s.Require().NoError(err)
 
 	producer.EXPECT().Confirmed(gomock.Any())
 
 	backend.Commit()
 	err = w.Tick(ctx)
+	s.Require().NoError(err)
+
 }

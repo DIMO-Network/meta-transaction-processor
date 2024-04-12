@@ -25,13 +25,23 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// EthClient contains all the ethclient.Client methods that we use.
+type EthClient interface {
+	BlockByNumber(ctx context.Context, number *big.Int) (*eth_types.Block, error)
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*eth_types.Receipt, error)
+	SuggestGasPrice(ctx context.Context) (*big.Int, error)
+	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
+	SendTransaction(ctx context.Context, tx *eth_types.Transaction) error
+	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
+}
+
 type Watcher struct {
 	logger             *zerolog.Logger
 	confirmationBlocks *big.Int
 	boostAfterBlocks   *big.Int
 	prod               status.Producer
 	dbs                db.Store
-	client             *ethclient.Client
+	client             EthClient
 	sender             sender.Sender
 	chainID            *big.Int
 }
@@ -316,7 +326,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 	}
 
 	sendTx.SubmittedBlockNumber = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(head.Number(), 0))
-	sendTx.SubmittedBlockHash = null.BytesFrom(signedTx.Hash().Bytes())
+	sendTx.SubmittedBlockHash = null.BytesFrom(head.Hash().Bytes())
 	sendTx.Nonce = types.NewNullDecimal(new(decimal.Big).SetUint64(nonce))
 	sendTx.GasPrice = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(gasPrice, 0))
 	sendTx.Hash = null.BytesFrom(signedTx.Hash().Bytes())

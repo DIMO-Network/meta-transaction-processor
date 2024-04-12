@@ -17,6 +17,10 @@ services:
     ports:
       # Map the port so you can access the API from the host machine
       - 4566:4566
+    volumes:
+      # Here you mount your setup file so it will be executed
+      # when the container starts
+      - ./resources/scripts/init.sh:/etc/localstack/init/ready.d/script.sh
 
 volumes:
   postgresdb:

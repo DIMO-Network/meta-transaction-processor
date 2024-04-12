@@ -93,7 +93,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 	latestBlock.Set(float64(head.NumberU64()))
 
-	logger := w.logger.With().Int64("block", head.Number().Int64()).Logger()
+	logger := w.logger.With().Int64("block", head.Number().Int64()).Int("walletIndex", w.walletIndex).Logger()
 
 	// There's at most one submitted transaction.
 	if activeTx, err := models.MetaTransactionRequests(

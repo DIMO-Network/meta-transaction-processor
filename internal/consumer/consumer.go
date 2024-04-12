@@ -65,13 +65,15 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 
 			logger = logger.With().Str("requestId", data.ID).Str("contract", data.To.Hex()).Logger()
 
-			logger.Info().Msg("Got transaction request.")
+			assignedWalletIndex := rand.Intn(c.numWallets)
+
+			logger.Info().Int("assignedWalletIndex", assignedWalletIndex).Msg("Got transaction request.")
 
 			tx := models.MetaTransactionRequest{
 				ID:          data.ID,
 				To:          data.To.Bytes(),
 				Data:        data.Data,
-				WalletIndex: rand.Intn(c.numWallets),
+				WalletIndex: assignedWalletIndex,
 			}
 
 			// Don't really want to update.

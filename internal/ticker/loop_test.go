@@ -131,7 +131,8 @@ func (s *ProcessorTestSuite) TestSubmitNew() {
 		txHash = msg.Hash
 	})
 
-	mtr.Insert(ctx, s.dbs.DBS().Writer, boil.Infer())
+	err = mtr.Insert(ctx, s.dbs.DBS().Writer, boil.Infer())
+	s.Require().NoError(err)
 
 	backend.Commit()
 

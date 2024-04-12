@@ -12,6 +12,11 @@ services:
       - POSTGRES_DB=meta_transaction_processor
     volumes:
       - postgresdb:/var/lib/postgresql/data:delegated
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      # Map the port so you can access the API from the host machine
+      - 4566:4566
 
 volumes:
   postgresdb:

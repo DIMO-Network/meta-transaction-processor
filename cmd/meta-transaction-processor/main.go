@@ -24,6 +24,7 @@ import (
 	"github.com/DIMO-Network/shared/db"
 	"github.com/DIMO-Network/shared/middleware/metrics"
 	"github.com/IBM/sarama"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/gofiber/fiber/v2"
@@ -104,7 +105,7 @@ func main() {
 	}
 
 	go func() {
-		err := consumer.New(ctx, "meta-transaction-processor", settings.TransactionRequestTopic, kafkaClient, &logger, pdb)
+		err := consumer.New(ctx, "meta-transaction-processor", settings.TransactionRequestTopic, kafkaClient, &logger, pdb, len(senders))
 		if err != nil {
 			logger.Fatal().Err(err).Msg("Failed to create Kafka consumer.")
 		}
@@ -115,8 +116,9 @@ func main() {
 	for i, sender := range senders {
 		watcher := ticker.New(&logger, sprod, confirmationBlocks, boostAfterBlocks, pdb, ethClient, chainID, sender, i)
 
+		tickerGroup.Add(1)
+
 		go func() {
-			tickerGroup.Add(1)
 			defer tickerGroup.Done()
 			ticker := time.NewTicker(time.Duration(settings.BlockTime) * time.Second)
 			for {
@@ -171,7 +173,23 @@ func createSenders(ctx context.Context, settings *config.Settings, logger *zerol
 
 		return senders, nil
 	} else {
-		awsconf, err := awsconfig.LoadDefaultConfig(ctx)
+		customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			if settings.AWSEndpoint != "" {
+				return aws.Endpoint{
+					PartitionID:   "aws",
+					URL:           settings.AWSEndpoint,
+					SigningRegion: settings.AWSRegion,
+				}, nil
+			}
+
+			// returning EndpointNotFoundError will allow the service to fallback to its default resolution
+			return aws.Endpoint{}, &aws.EndpointNotFoundError{}
+		})
+
+		awsconf, err := awsconfig.LoadDefaultConfig(ctx,
+			awsconfig.WithRegion(settings.AWSRegion),
+			awsconfig.WithEndpointResolverWithOptions(customResolver),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -186,7 +204,7 @@ func createSenders(ctx context.Context, settings *config.Settings, logger *zerol
 				return nil, err
 			}
 			senders[i] = send
-			logger.Info().Msgf("Loaded KMS key %s, address %s.", settings.KMSKeyID, send.Address().Hex())
+			logger.Info().Msgf("Loaded KMS key %s, address %s.", keyID, send.Address().Hex())
 		}
 
 		return senders, nil
@@ -215,7 +233,7 @@ func serveMonitoring(port string, logger *zerolog.Logger) *fiber.App {
 		}
 	}()
 
-	logger.Info().Msgf("Started monitoring web server on :%s.", port)
+	logger.Info().Msgf("Started monitoring web server on port %s.", port)
 
 	return monApp
 }

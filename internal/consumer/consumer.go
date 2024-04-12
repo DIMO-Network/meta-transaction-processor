@@ -25,8 +25,9 @@ var requestsTotal = promauto.NewCounter(
 )
 
 type consumer struct {
-	logger *zerolog.Logger
-	dbs    db.Store
+	logger     *zerolog.Logger
+	dbs        db.Store
+	numWallets int
 }
 
 type TransactionEventData struct {
@@ -84,13 +85,13 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 	}
 }
 
-func New(ctx context.Context, name string, topic string, kafkaClient sarama.Client, logger *zerolog.Logger, dbs db.Store) error {
+func New(ctx context.Context, name string, topic string, kafkaClient sarama.Client, logger *zerolog.Logger, dbs db.Store, numWallets int) error {
 	group, err := sarama.NewConsumerGroupFromClient(name, kafkaClient)
 	if err != nil {
 		return err
 	}
 
-	consumer := &consumer{logger: logger, dbs: dbs}
+	consumer := &consumer{logger: logger, dbs: dbs, numWallets: numWallets}
 
 	for {
 		err := group.Consume(ctx, []string{topic}, consumer)

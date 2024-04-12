@@ -118,11 +118,13 @@ func (s *ProcessorTestSuite) TestSubmitNew() {
 		client:             client,
 		sender:             sender,
 		chainID:            big.NewInt(1337),
+		walletIndex:        2,
 	}
 
 	mtr := models.MetaTransactionRequest{
-		ID: ksuid.New().String(),
-		To: common.HexToAddress("0xaa22").Bytes(),
+		ID:          ksuid.New().String(),
+		To:          common.HexToAddress("0xaa22").Bytes(),
+		WalletIndex: 2,
 	}
 
 	var txHash common.Hash

@@ -25,6 +25,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// EthClient contains all the ethclient.Client methods that we use.
 type EthClient interface {
 	BlockByNumber(ctx context.Context, number *big.Int) (*eth_types.Block, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*eth_types.Receipt, error)

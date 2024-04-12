@@ -44,9 +44,20 @@ type Watcher struct {
 	client             EthClient
 	sender             sender.Sender
 	chainID            *big.Int
+	walletIndex        int
 }
 
-func New(logger *zerolog.Logger, prod status.Producer, confirmationBlocks, boostAfterBlocks *big.Int, dbs db.Store, client *ethclient.Client, chainID *big.Int, sender sender.Sender) *Watcher {
+func New(
+	logger *zerolog.Logger,
+	prod status.Producer,
+	confirmationBlocks *big.Int,
+	boostAfterBlocks *big.Int,
+	dbs db.Store,
+	client *ethclient.Client,
+	chainID *big.Int,
+	sender sender.Sender,
+	walletIndex int,
+) *Watcher {
 	return &Watcher{
 		logger:             logger,
 		confirmationBlocks: confirmationBlocks,
@@ -56,6 +67,7 @@ func New(logger *zerolog.Logger, prod status.Producer, confirmationBlocks, boost
 		client:             client,
 		chainID:            chainID,
 		sender:             sender,
+		walletIndex:        walletIndex,
 	}
 }
 
@@ -86,6 +98,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 	// There's at most one submitted transaction.
 	if activeTx, err := models.MetaTransactionRequests(
 		models.MetaTransactionRequestWhere.SubmittedBlockNumber.IsNotNull(),
+		models.MetaTransactionRequestWhere.WalletIndex.EQ(w.walletIndex),
 	).One(ctx, w.dbs.DBS().Reader); err != nil {
 		if err != sql.ErrNoRows {
 			return err
@@ -265,6 +278,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 	sendTx, err := models.MetaTransactionRequests(
 		qm.OrderBy(models.MetaTransactionRequestColumns.ID+" ASC"),
+		models.MetaTransactionRequestWhere.WalletIndex.EQ(w.walletIndex),
 		qm.Limit(1),
 	).One(ctx, w.dbs.DBS().Reader)
 	if err != nil {

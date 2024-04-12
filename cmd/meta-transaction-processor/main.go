@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -77,7 +78,7 @@ func main() {
 
 	boostAfterBlocks := big.NewInt(settings.BoostAfterBlocks)
 
-	send, err := createSender(ctx, &settings, &logger)
+	senders, err := createSenders(ctx, &settings, &logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to create sender.")
 	}
@@ -109,27 +110,30 @@ func main() {
 		}
 	}()
 
-	tickerDone := make(chan struct{})
+	var tickerGroup sync.WaitGroup
 
-	watcher := ticker.New(&logger, sprod, confirmationBlocks, boostAfterBlocks, pdb, ethClient, chainID, send)
+	for i, sender := range senders {
+		watcher := ticker.New(&logger, sprod, confirmationBlocks, boostAfterBlocks, pdb, ethClient, chainID, sender, i)
 
-	go func() {
-		defer close(tickerDone)
-		ticker := time.NewTicker(time.Duration(settings.BlockTime) * time.Second)
-		for {
-			select {
-			case <-ticker.C:
-				appmetrics.TicksTotal.Inc()
-				if err := watcher.Tick(ctx); err != nil {
-					appmetrics.TickErrorsTotal.Inc()
-					log.Err(err).Msg("Error during tick.")
+		go func() {
+			tickerGroup.Add(1)
+			defer tickerGroup.Done()
+			ticker := time.NewTicker(time.Duration(settings.BlockTime) * time.Second)
+			for {
+				select {
+				case <-ticker.C:
+					appmetrics.TicksTotal.Inc()
+					if err := watcher.Tick(ctx); err != nil {
+						appmetrics.TickErrorsTotal.Inc()
+						log.Err(err).Msg("Error during tick.")
+					}
+				case <-ctx.Done():
+					ticker.Stop()
+					return
 				}
-			case <-ctx.Done():
-				ticker.Stop()
-				return
 			}
-		}
-	}()
+		}()
+	}
 
 	go startGRPCServer(&settings, &logger, pdb)
 
@@ -146,30 +150,46 @@ func main() {
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to shutdown monitoring web server.")
 	}
-	<-tickerDone
+	tickerGroup.Wait()
 }
 
-func createSender(ctx context.Context, settings *config.Settings, logger *zerolog.Logger) (sender.Sender, error) {
+func createSenders(ctx context.Context, settings *config.Settings, logger *zerolog.Logger) ([]sender.Sender, error) {
 	if settings.PrivateKeyMode {
-		logger.Warn().Msg("Using injected private key. Never do this in production.")
-		send, err := sender.FromKey(settings.SenderPrivateKey)
-		if err != nil {
-			return nil, err
+		logger.Warn().Msg("Using injected private keys. Never do this in production.")
+
+		rawPKs := strings.Split(settings.SenderPrivateKeys, ",")
+		senders := make([]sender.Sender, len(rawPKs))
+
+		for i, pk := range rawPKs {
+			send, err := sender.FromKey(pk)
+			if err != nil {
+				return nil, err
+			}
+			logger.Info().Str("address", send.Address().Hex()).Msg("Loaded private key account.")
+			senders[i] = send
 		}
-		logger.Info().Str("address", send.Address().Hex()).Msg("Loaded private key account.")
-		return send, nil
+
+		return senders, nil
 	} else {
 		awsconf, err := awsconfig.LoadDefaultConfig(ctx)
 		if err != nil {
 			return nil, err
 		}
 		kmsc := kms.NewFromConfig(awsconf)
-		send, err := sender.FromKMS(ctx, kmsc, settings.KMSKeyID)
-		if err != nil {
-			return nil, err
+
+		keyIDs := strings.Split(settings.KMSKeyIDs, ",")
+		senders := make([]sender.Sender, len(keyIDs))
+
+		for i, keyID := range keyIDs {
+			send, err := sender.FromKMS(ctx, kmsc, keyID)
+			if err != nil {
+				return nil, err
+			}
+			senders[i] = send
+			logger.Info().Msgf("Loaded KMS key %s, address %s.", settings.KMSKeyID, send.Address().Hex())
 		}
-		logger.Info().Msgf("Loaded KMS key %s, address %s.", settings.KMSKeyID, send.Address().Hex())
-		return send, nil
+
+		return senders, nil
 	}
 }
 

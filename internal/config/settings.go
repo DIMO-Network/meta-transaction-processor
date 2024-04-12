@@ -35,9 +35,17 @@ type Settings struct {
 	// ECC_SECG_P256K1. Only used if PrivateKeyMode is false.
 	KMSKeyID string `yaml:"KMS_KEY_ID"`
 
+	// KMSKeyIDs is the AWS KMS key id for signing transactions. The KeySpec must be
+	// ECC_SECG_P256K1. Only used if PrivateKeyMode is false.
+	KMSKeyIDs string `yaml:"KMS_KEY_IDS"`
+
 	// SenderPrivateKey is a hex-encoded private key for the secp256k1 curve, used
 	// to sign transactions. Only used if PrivateKeyMode is true.
 	SenderPrivateKey string `yaml:"SENDER_PRIVATE_KEY"`
+
+	// SenderPrivateKeys is a hex-encoded private key for the secp256k1 curve, used
+	// to sign transactions. Only used if PrivateKeyMode is true.
+	SenderPrivateKeys string `yaml:"SENDER_PRIVATE_KEYS"`
 
 	// ConfirmationBlocks is the number of blocks needed to consider a
 	// transaction confirmed.

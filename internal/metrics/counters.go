@@ -11,10 +11,13 @@ var (
 		Name:      "ticks_total",
 	})
 
-	TickErrorsTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "meta_transaction_processor",
-		Name:      "tick_errors_total",
-	})
+	TickErrorsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "meta_transaction_processor",
+			Name:      "tick_errors_total",
+		},
+		[]string{"walletIndex"},
+	)
 
 	GRPCPanicsCount = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "meta_transaction_processor_panics_total",

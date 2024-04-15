@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -33,6 +34,7 @@ import (
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 
@@ -126,7 +128,7 @@ func main() {
 				case <-ticker.C:
 					appmetrics.TicksTotal.Inc()
 					if err := watcher.Tick(ctx); err != nil {
-						appmetrics.TickErrorsTotal.Inc()
+						appmetrics.TickErrorsTotal.With(prometheus.Labels{"walletIndex": strconv.Itoa(i)}).Inc()
 						log.Err(err).Msg("Error during tick.")
 					}
 				case <-ctx.Done():

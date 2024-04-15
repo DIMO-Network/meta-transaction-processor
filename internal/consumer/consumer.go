@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"encoding/json"
+	"math/rand"
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/models"
 	"github.com/DIMO-Network/shared"
@@ -25,8 +26,9 @@ var requestsTotal = promauto.NewCounter(
 )
 
 type consumer struct {
-	logger *zerolog.Logger
-	dbs    db.Store
+	logger     *zerolog.Logger
+	dbs        db.Store
+	numWallets int
 }
 
 type TransactionEventData struct {
@@ -63,12 +65,15 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 
 			logger = logger.With().Str("requestId", data.ID).Str("contract", data.To.Hex()).Logger()
 
-			logger.Info().Msg("Got transaction request.")
+			assignedWalletIndex := rand.Intn(c.numWallets)
+
+			logger.Info().Int("assignedWalletIndex", assignedWalletIndex).Msg("Got transaction request.")
 
 			tx := models.MetaTransactionRequest{
-				ID:   data.ID,
-				To:   data.To.Bytes(),
-				Data: data.Data,
+				ID:          data.ID,
+				To:          data.To.Bytes(),
+				Data:        data.Data,
+				WalletIndex: assignedWalletIndex,
 			}
 
 			// Don't really want to update.
@@ -84,13 +89,13 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 	}
 }
 
-func New(ctx context.Context, name string, topic string, kafkaClient sarama.Client, logger *zerolog.Logger, dbs db.Store) error {
+func New(ctx context.Context, name string, topic string, kafkaClient sarama.Client, logger *zerolog.Logger, dbs db.Store, numWallets int) error {
 	group, err := sarama.NewConsumerGroupFromClient(name, kafkaClient)
 	if err != nil {
 		return err
 	}
 
-	consumer := &consumer{logger: logger, dbs: dbs}
+	consumer := &consumer{logger: logger, dbs: dbs, numWallets: numWallets}
 
 	for {
 		err := group.Consume(ctx, []string{topic}, consumer)

@@ -204,7 +204,7 @@ func createSenders(ctx context.Context, settings *config.Settings, logger *zerol
 				return nil, err
 			}
 			senders[i] = send
-			logger.Info().Msgf("Loaded KMS key %s, address %s, into slot %i.", keyID, send.Address().Hex(), i)
+			logger.Info().Msgf("Loaded KMS key %s, address %s, into slot %d.", keyID, send.Address().Hex(), i)
 		}
 
 		return senders, nil

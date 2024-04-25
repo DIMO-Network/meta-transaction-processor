@@ -106,6 +106,8 @@ func main() {
 		logger.Fatal().Err(err).Msg("Couldn't retrieve chain id.")
 	}
 
+	logger.Info().Msgf("Chain id is %d.", chainID)
+
 	go func() {
 		err := consumer.New(ctx, "meta-transaction-processor", settings.TransactionRequestTopic, kafkaClient, &logger, pdb, len(senders))
 		if err != nil {

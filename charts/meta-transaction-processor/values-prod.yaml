@@ -7,7 +7,6 @@ cronJob:
   enabled: false
 env:
   ENVIRONMENT: prod
-  ETHEREUM_CHAIN_ID: 137
   CONFIRMATION_BLOCKS: 5
   PRIVATE_KEY_MODE: false
   IN_MEMORY_DB: false

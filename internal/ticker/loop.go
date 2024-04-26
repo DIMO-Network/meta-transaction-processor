@@ -13,7 +13,7 @@ import (
 	"github.com/ericlagergren/decimal"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	eth_types "github.com/ethereum/go-ethereum/core/types"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -27,11 +27,11 @@ import (
 
 // EthClient contains all the ethclient.Client methods that we use.
 type EthClient interface {
-	BlockByNumber(ctx context.Context, number *big.Int) (*eth_types.Block, error)
-	TransactionReceipt(ctx context.Context, txHash common.Hash) (*eth_types.Receipt, error)
+	BlockByNumber(ctx context.Context, number *big.Int) (*ethtypes.Block, error)
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethtypes.Receipt, error)
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
-	SendTransaction(ctx context.Context, tx *eth_types.Transaction) error
+	SendTransaction(ctx context.Context, tx *ethtypes.Transaction) error
 	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
 }
 
@@ -134,7 +134,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 			}
 
 			if new(big.Int).Sub(head.Number(), lastSend).Cmp(w.boostAfterBlocks) >= 0 {
-				signer := eth_types.LatestSignerForChainID(w.chainID)
+				signer := ethtypes.LatestSignerForChainID(w.chainID)
 
 				gasPrice, err := w.client.SuggestGasPrice(ctx)
 				if err != nil {
@@ -169,7 +169,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 				nonce, _ := activeTx.Nonce.Uint64()
 
-				txd := &eth_types.LegacyTx{
+				txd := &ethtypes.LegacyTx{
 					Nonce:    nonce,
 					GasPrice: gasPrice,
 					Gas:      gasLimit,
@@ -177,7 +177,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 					Data:     callMsg.Data,
 				}
 
-				tx := eth_types.NewTx(txd)
+				tx := ethtypes.NewTx(txd)
 
 				sigHash := signer.Hash(tx)
 				sigBytes, err := w.sender.Sign(ctx, sigHash)
@@ -295,7 +295,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		return fmt.Errorf("failed to retrieve nonce: %w", err)
 	}
 
-	signer := eth_types.LatestSignerForChainID(w.chainID)
+	signer := ethtypes.LatestSignerForChainID(w.chainID)
 
 	gasPrice, err := w.client.SuggestGasPrice(ctx)
 	if err != nil {
@@ -313,12 +313,21 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 	gasLimit, err := w.client.EstimateGas(ctx, callMsg)
 	if err != nil {
-		return fmt.Errorf("failed to estimate gas usage: %w", err)
+		logger.Err(err).Msg("Failed to estimate gas usage for transaction.")
+
+		w.prod.Failed(&status.FailedMsg{ID: sendTx.ID})
+
+		_, err := sendTx.Delete(ctx, w.dbs.DBS().Writer)
+		if err != nil {
+			return fmt.Errorf("failed to delete un-estimateable transaction: %w", err)
+		}
+
+		return nil
 	}
 
 	gasLimit = 2 * gasLimit
 
-	txd := &eth_types.LegacyTx{
+	txd := &ethtypes.LegacyTx{
 		Nonce:    nonce,
 		GasPrice: gasPrice,
 		Gas:      gasLimit,
@@ -326,7 +335,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		Data:     callMsg.Data,
 	}
 
-	tx := eth_types.NewTx(txd)
+	tx := ethtypes.NewTx(txd)
 
 	sigHash := signer.Hash(tx)
 	sigBytes, err := w.sender.Sign(ctx, sigHash)

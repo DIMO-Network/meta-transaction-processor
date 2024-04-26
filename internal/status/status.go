@@ -30,6 +30,10 @@ type ConfirmedMsg struct {
 	Successful bool
 }
 
+type FailedMsg struct {
+	ID string
+}
+
 type Log struct {
 	Address common.Address `json:"address"`
 	Topics  []common.Hash  `json:"topics"`
@@ -41,6 +45,7 @@ type Producer interface {
 	Submitted(msg *SubmittedMsg)
 	Mined(msg *MinedMsg)
 	Confirmed(msg *ConfirmedMsg)
+	Failed(msg *FailedMsg)
 }
 
 type kafkaProducer struct {
@@ -166,6 +171,38 @@ func (p *kafkaProducer) Mined(msg *MinedMsg) {
 
 	if err != nil {
 		p.logger.Err(err).Str("requestId", msg.ID).Str("type", "Mined").Msg("Failed sending status update.")
+	}
+}
+
+func (p *kafkaProducer) Failed(msg *FailedMsg) {
+	event := shared.CloudEvent[ceData]{
+		ID:          ksuid.New().String(),
+		Source:      "meta-transaction-processor",
+		Subject:     msg.ID,
+		SpecVersion: "1.0",
+		Time:        time.Now(),
+		Type:        "zone.dimo.transaction.request.event",
+		Data: ceData{
+			RequestID: msg.ID,
+			Type:      "Failed",
+		},
+	}
+
+	bs, err := json.Marshal(event)
+	if err != nil {
+		p.logger.Err(err).Msg("Couldn't marshal failed message.")
+		return
+	}
+
+	_, _, err = p.kp.SendMessage(
+		&sarama.ProducerMessage{
+			Topic: p.topic,
+			Value: sarama.ByteEncoder(bs),
+		},
+	)
+
+	if err != nil {
+		p.logger.Err(err).Str("requestId", msg.ID).Str("type", "Failed").Msg("Failed sending status update.")
 	}
 }
 

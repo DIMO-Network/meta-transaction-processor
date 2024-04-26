@@ -51,6 +51,18 @@ func (mr *MockProducerMockRecorder) Confirmed(msg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Confirmed", reflect.TypeOf((*MockProducer)(nil).Confirmed), msg)
 }
 
+// Failed mocks base method.
+func (m *MockProducer) Failed(msg *status.FailedMsg) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Failed", msg)
+}
+
+// Failed indicates an expected call of Failed.
+func (mr *MockProducerMockRecorder) Failed(msg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Failed", reflect.TypeOf((*MockProducer)(nil).Failed), msg)
+}
+
 // Mined mocks base method.
 func (m *MockProducer) Mined(msg *status.MinedMsg) {
 	m.ctrl.T.Helper()

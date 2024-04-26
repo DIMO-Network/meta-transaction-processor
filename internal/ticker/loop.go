@@ -95,7 +95,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 	logger := w.logger.With().Int64("block", head.Number().Int64()).Int("walletIndex", w.walletIndex).Logger()
 
-	// There's at most one submitted transaction.
+	// There's at most one submitted transaction per wallet.
 	if activeTx, err := models.MetaTransactionRequests(
 		models.MetaTransactionRequestWhere.SubmittedBlockNumber.IsNotNull(),
 		models.MetaTransactionRequestWhere.WalletIndex.EQ(w.walletIndex),
@@ -141,7 +141,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 					return fmt.Errorf("failed to retrieve gas price estimate: %w", err)
 				}
 
-				gasPrice = new(big.Int).Mul(big.NewInt(2), gasPrice)
+				gasPrice = new(big.Int).Mul(common.Big2, gasPrice)
 
 				oldGasPrice := activeTx.GasPrice.Int(nil)
 
@@ -302,7 +302,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		return fmt.Errorf("failed to retrieve gas price estimate: %w", err)
 	}
 
-	gasPrice = new(big.Int).Mul(big.NewInt(2), gasPrice)
+	gasPrice = new(big.Int).Mul(common.Big2, gasPrice)
 
 	callMsg := ethereum.CallMsg{
 		From:     w.sender.Address(),

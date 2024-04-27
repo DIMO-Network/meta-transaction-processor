@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/DIMO-Network/meta-transaction-processor/internal/gasoracle"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/models"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/sender"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
@@ -54,6 +55,7 @@ type Watcher struct {
 	sender             sender.Sender
 	chainID            *big.Int
 	walletIndex        int
+	oracle             gasoracle.Oracle
 }
 
 func New(
@@ -66,6 +68,7 @@ func New(
 	chainID *big.Int,
 	sender sender.Sender,
 	walletIndex int,
+	oracle gasoracle.Oracle,
 ) *Watcher {
 	return &Watcher{
 		logger:             logger,
@@ -77,6 +80,7 @@ func New(
 		chainID:            chainID,
 		sender:             sender,
 		walletIndex:        walletIndex,
+		oracle:             oracle,
 	}
 }
 
@@ -309,18 +313,17 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 	signer := ethtypes.LatestSignerForChainID(w.chainID)
 
-	gasPrice, err := w.client.SuggestGasPrice(ctx)
+	fees, err := w.oracle.EstimateFees(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve gas price estimate: %w", err)
+		return fmt.Errorf("failed to retrieve gas fee estimates: %w", err)
 	}
 
-	gasPrice = new(big.Int).Mul(common.Big2, gasPrice)
-
 	callMsg := ethereum.CallMsg{
-		From:     w.sender.Address(),
-		To:       Ref(common.BytesToAddress(sendTx.To)),
-		GasPrice: gasPrice,
-		Data:     sendTx.Data,
+		From:      w.sender.Address(),
+		To:        Ref(common.BytesToAddress(sendTx.To)),
+		GasTipCap: fees.GasTipCap,
+		GasFeeCap: fees.GasFeeCap,
+		Data:      sendTx.Data,
 	}
 
 	gasLimit, err := w.client.EstimateGas(ctx, callMsg)
@@ -351,12 +354,13 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 	gasLimit = 2 * gasLimit
 
-	txd := &ethtypes.LegacyTx{
-		Nonce:    nonce,
-		GasPrice: gasPrice,
-		Gas:      gasLimit,
-		To:       callMsg.To,
-		Data:     callMsg.Data,
+	txd := &ethtypes.DynamicFeeTx{
+		Nonce:     nonce,
+		GasTipCap: fees.GasTipCap,
+		GasFeeCap: fees.GasFeeCap,
+		Gas:       gasLimit,
+		To:        callMsg.To,
+		Data:      callMsg.Data,
 	}
 
 	tx := ethtypes.NewTx(txd)

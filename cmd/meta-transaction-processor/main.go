@@ -15,6 +15,7 @@ import (
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/config"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/consumer"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/gasoracle"
 	appmetrics "github.com/DIMO-Network/meta-transaction-processor/internal/metrics"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/rpc"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/sender"
@@ -117,8 +118,15 @@ func main() {
 
 	var tickerGroup sync.WaitGroup
 
+	var gasOracle gasoracle.Oracle
+	if settings.GasOracleType == "polygon" {
+		gasOracle = gasoracle.NewPolygon(settings.PolygonGasOracleURL)
+	} else {
+		gasOracle = gasoracle.NewBasic(*ethClient)
+	}
+
 	for i, sender := range senders {
-		watcher := ticker.New(&logger, sprod, confirmationBlocks, boostAfterBlocks, pdb, ethClient, chainID, sender, i)
+		watcher := ticker.New(&logger, sprod, confirmationBlocks, boostAfterBlocks, pdb, ethClient, chainID, sender, i, gasOracle)
 
 		tickerGroup.Add(1)
 

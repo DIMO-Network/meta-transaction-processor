@@ -62,4 +62,10 @@ type Settings struct {
 
 	AWSEndpoint string `yaml:"AWS_ENDPOINT"`
 	AWSRegion   string `yaml:"AWS_REGION"`
+
+	// GasOracleType is the type of gas oracle to use. The available options are
+	// "polygon" or "basic" (default).
+	GasOracleType string `yaml:"GAS_ORACLE_TYPE"`
+
+	PolygonGasOracleURL string `yaml:"POLYGON_GAS_ORACLE_URL"`
 }

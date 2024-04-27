@@ -37,7 +37,7 @@ type EthClient interface {
 }
 
 // ethJSONRPCError mirrors the methods of the unexported rpc.jsonError type from
-// go-thereum.
+// go-ethereum.
 type ethJSONRPCError interface {
 	Error() string
 	ErrorCode() int

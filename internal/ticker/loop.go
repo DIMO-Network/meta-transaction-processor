@@ -335,8 +335,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 			if hexData, ok := jerr.ErrorData().(string); ok {
 				if data, err := hexutil.Decode(hexData); err == nil && len(data) != 0 {
 					outData = data
-
-					logger.Error().Bytes("data", data).Msg("Transaction failed with data.")
+					logger.Error().Hex("data", data).Msg("Transaction failed with data.")
 				}
 			}
 		}

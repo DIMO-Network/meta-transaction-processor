@@ -28,7 +28,7 @@ import (
 
 // EthClient contains all the ethclient.Client methods that we use.
 type EthClient interface {
-	BlockByNumber(ctx context.Context, number *big.Int) (*ethtypes.Block, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*ethtypes.Header, error)
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*ethtypes.Receipt, error)
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
@@ -95,14 +95,17 @@ var submittedTxBlockAge = promauto.NewGauge(
 )
 
 func (w *Watcher) Tick(ctx context.Context) error {
-	head, err := w.client.BlockByNumber(ctx, nil)
+	head, err := w.client.HeaderByNumber(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve latest block: %w", err)
 	}
 
-	latestBlock.Set(float64(head.NumberU64()))
+	headNum := head.Number
+	headNumFloat, _ := headNum.Float64()
 
-	logger := w.logger.With().Int64("block", head.Number().Int64()).Int("walletIndex", w.walletIndex).Logger()
+	latestBlock.Set(headNumFloat)
+
+	logger := w.logger.With().Int64("block", headNum.Int64()).Int("walletIndex", w.walletIndex).Logger()
 
 	// There's at most one submitted transaction per wallet.
 	if activeTx, err := models.MetaTransactionRequests(
@@ -115,8 +118,8 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		// If there's no submitted transaction, fall through to trying to submit something new.
 	} else {
 		// We have a submitted but not confirmed (it would have been deleted) transaction.
-		subBlockNum, _ := activeTx.SubmittedBlockNumber.Int64()
-		submittedTxBlockAge.Set(float64(head.Number().Int64() - subBlockNum))
+		subBlockNum, _ := activeTx.SubmittedBlockNumber.Float64()
+		submittedTxBlockAge.Set(headNumFloat - subBlockNum)
 
 		logger := logger.With().Str("requestId", activeTx.ID).Str("contract", common.BytesToAddress(activeTx.To).Hex()).Logger()
 
@@ -142,7 +145,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 				lastSend = activeTx.BoostedBlockNumber.Int(nil)
 			}
 
-			if new(big.Int).Sub(head.Number(), lastSend).Cmp(w.boostAfterBlocks) >= 0 {
+			if new(big.Int).Sub(headNum, lastSend).Cmp(w.boostAfterBlocks) >= 0 {
 				signer := ethtypes.LatestSignerForChainID(w.chainID)
 
 				gasPrice, err := w.client.SuggestGasPrice(ctx)
@@ -199,7 +202,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 					return fmt.Errorf("failed to attach signature to transaction: %w", err)
 				}
 
-				activeTx.BoostedBlockNumber = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(head.Number(), 0))
+				activeTx.BoostedBlockNumber = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(headNum, 0))
 				activeTx.BoostedBlockHash = null.BytesFrom(signedTx.Hash().Bytes())
 				activeTx.Nonce = types.NewNullDecimal(new(decimal.Big).SetUint64(nonce))
 				activeTx.GasPrice = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(gasPrice, 0))
@@ -235,7 +238,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 			return err
 		}
 
-		conf := new(big.Int).Sub(head.Number(), rec.BlockNumber)
+		conf := new(big.Int).Sub(headNum, rec.BlockNumber)
 
 		if conf.Cmp(w.confirmationBlocks) >= 0 {
 			logs := make([]*status.Log, len(rec.Logs))
@@ -369,7 +372,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		return fmt.Errorf("failed to attach signature to transaction: %w", err)
 	}
 
-	sendTx.SubmittedBlockNumber = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(head.Number(), 0))
+	sendTx.SubmittedBlockNumber = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(headNum, 0))
 	sendTx.SubmittedBlockHash = null.BytesFrom(head.Hash().Bytes())
 	sendTx.Nonce = types.NewNullDecimal(new(decimal.Big).SetUint64(nonce))
 	sendTx.GasPrice = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(gasPrice, 0))

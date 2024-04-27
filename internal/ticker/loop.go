@@ -126,15 +126,15 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		rec, err := w.client.TransactionReceipt(ctx, common.BytesToHash(activeTx.Hash.Bytes))
 		if err != nil {
 			if err != ethereum.NotFound {
-				return err
+				return fmt.Errorf("error retrieving transaction receipt: %w", err)
 			}
+			// Transaction not included yet.
 
-			// Might have been kicked out of the canonical chain.
 			if !activeTx.MinedBlockNumber.IsZero() {
 				logger.Info().Msg("Transaction no longer in the canonical chain.")
 				activeTx.MinedBlockNumber = types.NewNullDecimal(nil)
 				activeTx.MinedBlockHash = null.Bytes{}
-				_, err := activeTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.MinedBlockNumber, cols.MinedBlockHash))
+				_, err := activeTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.MinedBlockNumber, cols.MinedBlockHash, cols.UpdatedAt))
 				if err != nil {
 					return err
 				}
@@ -221,6 +221,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 			}
 		}
 
+		// Transaction included.
 		if activeTx.MinedBlockNumber.IsZero() {
 			logger.Info().Msgf("Transaction mined in block %d.", rec.BlockNumber)
 
@@ -285,7 +286,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		}
 	}
 
-	// At this point, there's nothing in the table that's been submitted.
+	// At this point, there's nothing in the table that's been submitted. Try to submit something.
 	submittedTxBlockAge.Set(0)
 
 	sendTx, err := models.MetaTransactionRequests(
@@ -379,7 +380,14 @@ func (w *Watcher) Tick(ctx context.Context) error {
 	sendTx.GasPrice = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(gasPrice, 0))
 	sendTx.Hash = null.BytesFrom(signedTx.Hash().Bytes())
 
-	_, err = sendTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(cols.SubmittedBlockHash, cols.Hash, cols.SubmittedBlockNumber, cols.Nonce, cols.GasPrice, cols.UpdatedAt))
+	_, err = sendTx.Update(ctx, w.dbs.DBS().Writer, boil.Whitelist(
+		cols.SubmittedBlockHash,
+		cols.Hash,
+		cols.SubmittedBlockNumber,
+		cols.Nonce,
+		cols.GasPrice,
+		cols.UpdatedAt,
+	))
 	if err != nil {
 		return err
 	}

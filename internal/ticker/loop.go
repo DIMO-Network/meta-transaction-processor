@@ -332,10 +332,10 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		// TODO(elffjs): More logging if this doesn't meet our expectations.
 		// There is no contract around these error values.
 		if jerr, ok := err.(ethJSONRPCError); ok {
+			logger.Error().Str("message", jerr.Error()).Int("code", jerr.ErrorCode()).Interface("data", jerr.ErrorData()).Msg("Transaction failed with a JSON-RPC error.")
 			if hexData, ok := jerr.ErrorData().(string); ok {
 				if data, err := hexutil.Decode(hexData); err == nil && len(data) != 0 {
 					outData = data
-					logger.Error().Hex("data", data).Msg("Transaction failed with data.")
 				}
 			}
 		}

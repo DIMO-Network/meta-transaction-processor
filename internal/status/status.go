@@ -67,10 +67,10 @@ type reason struct {
 
 // Just using the same struct for all three event types. Lazy.
 type ceData struct {
-	RequestID   string `json:"requestId"`
-	Type        string `json:"type"`
-	Transaction tx     `json:"transaction"`
-	Reason      reason `json:"reason"`
+	RequestID   string  `json:"requestId"`
+	Type        string  `json:"type"`
+	Transaction *tx     `json:"transaction,omitempty"`
+	Reason      *reason `json:"reason,omitempty"`
 }
 
 func (p *kafkaProducer) Confirmed(msg *ConfirmedMsg) {
@@ -84,7 +84,7 @@ func (p *kafkaProducer) Confirmed(msg *ConfirmedMsg) {
 		Data: ceData{
 			RequestID: msg.ID,
 			Type:      "Confirmed",
-			Transaction: tx{
+			Transaction: &tx{
 				Hash:       msg.Hash,
 				Successful: &msg.Successful,
 				Logs:       msg.Logs,
@@ -121,7 +121,7 @@ func (p *kafkaProducer) Submitted(msg *SubmittedMsg) {
 		Data: ceData{
 			RequestID: msg.ID,
 			Type:      "Submitted",
-			Transaction: tx{
+			Transaction: &tx{
 				Hash: msg.Hash,
 			},
 		},
@@ -156,7 +156,7 @@ func (p *kafkaProducer) Mined(msg *MinedMsg) {
 		Data: ceData{
 			RequestID: msg.ID,
 			Type:      "Mined",
-			Transaction: tx{
+			Transaction: &tx{
 				Hash: msg.Hash,
 			},
 		},
@@ -191,7 +191,7 @@ func (p *kafkaProducer) Failed(msg *FailedMsg) {
 		Data: ceData{
 			RequestID: msg.ID,
 			Type:      "Failed",
-			Reason: reason{
+			Reason: &reason{
 				Data: msg.Data,
 			},
 		},

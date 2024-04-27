@@ -2,6 +2,7 @@ package ticker
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"math/big"
 	"testing"
 	"time"
@@ -10,10 +11,14 @@ import (
 	"github.com/DIMO-Network/meta-transaction-processor/internal/models"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/sender"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/status"
+	"github.com/DIMO-Network/meta-transaction-processor/internal/testcontract"
 	"github.com/DIMO-Network/shared/db"
 	"github.com/docker/go-connections/nat"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient/simulated"
 	"github.com/pressly/goose/v3"
 	"github.com/rs/zerolog"
@@ -39,6 +44,19 @@ type ProcessorTestSuite struct {
 func TestProcessorTestSuite(t *testing.T) {
 	suite.Run(t, new(ProcessorTestSuite))
 }
+
+func (s *ProcessorTestSuite) createAccount() (common.Address, *ecdsa.PrivateKey) {
+	sk, err := crypto.GenerateKey()
+	s.Require().NoError(err)
+
+	pk, _ := sk.Public().(*ecdsa.PublicKey)
+
+	addr := crypto.PubkeyToAddress(*pk)
+
+	return addr, sk
+}
+
+var eth = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 
 func (s *ProcessorTestSuite) TestSubmitNew() {
 	ctx := context.Background()
@@ -95,16 +113,32 @@ func (s *ProcessorTestSuite) TestSubmitNew() {
 
 	logger := zerolog.Nop()
 
-	addr := common.HexToAddress("0x96216849c49358B10257cb55b28eA603c874b05E")
+	deployAddr, deploySK := s.createAccount()
+
+	relayAddr, relaySK := s.createAccount()
 
 	backend := simulated.NewBackend(types.GenesisAlloc{
-		addr: types.Account{
-			Balance: big.NewInt(999999999999999999),
+		relayAddr: types.Account{
+			Balance: new(big.Int).Mul(big.NewInt(10_000), eth),
+		},
+		deployAddr: types.Account{
+			Balance: new(big.Int).Mul(big.NewInt(10_000), eth),
 		},
 	})
 	client := backend.Client()
 
-	sender, _ := sender.FromKey("0xfad9c8855b740a0b7ed4c221dbad0f33a83a49cad6b3fe8d5817ac83d38b6a19")
+	chainID, err := client.ChainID(ctx)
+	s.Require().NoError(err)
+
+	auth, err := bind.NewKeyedTransactorWithChainID(deploySK, chainID)
+	s.Require().NoError(err)
+
+	contractAddr, _, _, err := testcontract.DeployTestcontract(auth, client)
+	s.Require().NoError(err)
+
+	backend.Commit()
+
+	sender, _ := sender.FromKey(hexutil.Encode(crypto.FromECDSA(relaySK)))
 
 	mockCtrl := gomock.NewController(s.T())
 	producer := mocks.NewMockProducer(mockCtrl)
@@ -123,8 +157,9 @@ func (s *ProcessorTestSuite) TestSubmitNew() {
 
 	mtr := models.MetaTransactionRequest{
 		ID:          ksuid.New().String(),
-		To:          common.HexToAddress("0xaa22").Bytes(),
+		To:          contractAddr.Bytes(),
 		WalletIndex: 2,
+		Data:        common.FromHex("0x7050f4c0"),
 	}
 
 	var txHash common.Hash
@@ -153,7 +188,7 @@ func (s *ProcessorTestSuite) TestSubmitNew() {
 	err = mtr.Reload(ctx, s.dbs.DBS().Reader)
 	s.Require().NoError(err)
 
-	s.Equal(big.NewInt(1), mtr.SubmittedBlockNumber.Int(nil))
+	s.Equal(big.NewInt(2), mtr.SubmittedBlockNumber.Int(nil))
 	s.Equal(submissionBlock.Hash().Bytes(), mtr.SubmittedBlockHash.Bytes)
 
 	backend.Commit()
@@ -169,7 +204,7 @@ func (s *ProcessorTestSuite) TestSubmitNew() {
 	err = mtr.Reload(ctx, dbs.DBS().Reader)
 	s.Require().NoError(err)
 
-	s.Equal(big.NewInt(2), mtr.MinedBlockNumber.Int(nil))
+	s.Equal(big.NewInt(3), mtr.MinedBlockNumber.Int(nil))
 
 	backend.Commit()
 	err = w.Tick(ctx)
@@ -180,5 +215,4 @@ func (s *ProcessorTestSuite) TestSubmitNew() {
 	backend.Commit()
 	err = w.Tick(ctx)
 	s.Require().NoError(err)
-
 }

@@ -313,6 +313,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 	gasLimit, err := w.client.EstimateGas(ctx, callMsg)
 	if err != nil {
+		fmt.Printf("%#+v\nXFF%d", err, gasPrice)
 		logger.Err(err).Msg("Failed to estimate gas usage for transaction.")
 
 		w.prod.Failed(&status.FailedMsg{ID: sendTx.ID})

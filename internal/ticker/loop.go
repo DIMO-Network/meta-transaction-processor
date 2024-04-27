@@ -333,8 +333,10 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		// There is no contract around these error values.
 		if jerr, ok := err.(ethJSONRPCError); ok {
 			if hexData, ok := jerr.ErrorData().(string); ok {
-				if data, err := hexutil.Decode(hexData); err == nil {
+				if data, err := hexutil.Decode(hexData); err == nil && len(data) != 0 {
 					outData = data
+
+					logger.Error().Bytes("data", data).Msg("Transaction failed with data.")
 				}
 			}
 		}

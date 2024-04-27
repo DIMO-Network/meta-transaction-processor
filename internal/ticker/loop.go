@@ -13,6 +13,7 @@ import (
 	"github.com/ericlagergren/decimal"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/prometheus/client_golang/prometheus"
@@ -33,6 +34,14 @@ type EthClient interface {
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 	SendTransaction(ctx context.Context, tx *ethtypes.Transaction) error
 	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
+}
+
+// ethJSONRPCError mirrors the methods of the unexported rpc.jsonError type from
+// go-thereum.
+type ethJSONRPCError interface {
+	Error() string
+	ErrorCode() int
+	ErrorData() any
 }
 
 type Watcher struct {
@@ -313,10 +322,21 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 	gasLimit, err := w.client.EstimateGas(ctx, callMsg)
 	if err != nil {
-		fmt.Printf("%#+v\nXFF%d", err, gasPrice)
 		logger.Err(err).Msg("Failed to estimate gas usage for transaction.")
 
-		w.prod.Failed(&status.FailedMsg{ID: sendTx.ID})
+		var outData []byte
+
+		// TODO(elffjs): More logging if this doesn't meet our expectations.
+		// There is no contract around these error values.
+		if jerr, ok := err.(ethJSONRPCError); ok {
+			if hexData, ok := jerr.ErrorData().(string); ok {
+				if data, err := hexutil.Decode(hexData); err == nil {
+					outData = data
+				}
+			}
+		}
+
+		w.prod.Failed(&status.FailedMsg{ID: sendTx.ID, Data: outData})
 
 		_, err := sendTx.Delete(ctx, w.dbs.DBS().Writer)
 		if err != nil {

@@ -31,7 +31,8 @@ type ConfirmedMsg struct {
 }
 
 type FailedMsg struct {
-	ID string
+	ID   string
+	Data []byte
 }
 
 type Log struct {
@@ -60,11 +61,16 @@ type tx struct {
 	Logs       []*Log      `json:"logs,omitempty"`
 }
 
+type reason struct {
+	Data hexutil.Bytes `json:"data"`
+}
+
 // Just using the same struct for all three event types. Lazy.
 type ceData struct {
 	RequestID   string `json:"requestId"`
 	Type        string `json:"type"`
 	Transaction tx     `json:"transaction"`
+	Reason      reason `json:"reason"`
 }
 
 func (p *kafkaProducer) Confirmed(msg *ConfirmedMsg) {
@@ -185,6 +191,9 @@ func (p *kafkaProducer) Failed(msg *FailedMsg) {
 		Data: ceData{
 			RequestID: msg.ID,
 			Type:      "Failed",
+			Reason: reason{
+				Data: msg.Data,
+			},
 		},
 	}
 

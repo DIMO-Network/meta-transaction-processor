@@ -3,6 +3,7 @@ package ticker
 import (
 	"context"
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -31,21 +32,29 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-type ProcessorTestSuite struct {
+type WatcherTestSuite struct {
 	suite.Suite
 
 	pgCont *postgres.PostgresContainer
 	dbs    db.Store
-	// mockCtrl   *gomock.Controller
-	// dexClient  *mocks.MockDexClient
-	// gokaTester *tester.Tester
+
+	relayAddr common.Address
+	relaySK   *ecdsa.PrivateKey
+
+	contractAddr common.Address
+
+	w        Watcher
+	producer *mocks.MockProducer
+
+	client  simulated.Client
+	backend *simulated.Backend
 }
 
-func TestProcessorTestSuite(t *testing.T) {
-	suite.Run(t, new(ProcessorTestSuite))
+func TestWatcherTestSuite(t *testing.T) {
+	suite.Run(t, new(WatcherTestSuite))
 }
 
-func (s *ProcessorTestSuite) createAccount() (common.Address, *ecdsa.PrivateKey) {
+func (s *WatcherTestSuite) createAccount() (common.Address, *ecdsa.PrivateKey) {
 	sk, err := crypto.GenerateKey()
 	s.Require().NoError(err)
 
@@ -58,7 +67,7 @@ func (s *ProcessorTestSuite) createAccount() (common.Address, *ecdsa.PrivateKey)
 
 var eth = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 
-func (s *ProcessorTestSuite) TestSubmitNew() {
+func (s *WatcherTestSuite) SetupSuite() {
 	ctx := context.Background()
 
 	container, err := postgres.RunContainer(
@@ -107,80 +116,89 @@ func (s *ProcessorTestSuite) TestSubmitNew() {
 	err = goose.RunContext(ctx, "up", dbs.DBS().Writer.DB, "../../migrations")
 	s.Require().NoError(err)
 
-	// TODO(elffjs): Why doesn't Snapshot/Restore work?
-	err = container.Snapshot(ctx)
+	s.relayAddr, s.relaySK = s.createAccount()
+}
+
+func (s *WatcherTestSuite) SetupTest() {
+	ctx := context.Background()
+
+	_, err := models.MetaTransactionRequests().DeleteAll(ctx, s.dbs.DBS().Writer)
 	s.Require().NoError(err)
 
 	logger := zerolog.Nop()
 
 	deployAddr, deploySK := s.createAccount()
 
-	relayAddr, relaySK := s.createAccount()
-
-	backend := simulated.NewBackend(types.GenesisAlloc{
-		relayAddr: types.Account{
+	s.backend = simulated.NewBackend(types.GenesisAlloc{
+		s.relayAddr: types.Account{
 			Balance: new(big.Int).Mul(big.NewInt(10_000), eth),
 		},
 		deployAddr: types.Account{
 			Balance: new(big.Int).Mul(big.NewInt(10_000), eth),
 		},
 	})
-	client := backend.Client()
 
-	chainID, err := client.ChainID(ctx)
+	s.client = s.backend.Client()
+
+	chainID, err := s.client.ChainID(ctx)
 	s.Require().NoError(err)
 
 	auth, err := bind.NewKeyedTransactorWithChainID(deploySK, chainID)
 	s.Require().NoError(err)
 
-	contractAddr, _, _, err := testcontract.DeployTestcontract(auth, client)
+	s.contractAddr, _, _, err = testcontract.DeployTestcontract(auth, s.client)
 	s.Require().NoError(err)
 
-	backend.Commit()
+	s.backend.Commit()
 
-	sender, _ := sender.FromKey(hexutil.Encode(crypto.FromECDSA(relaySK)))
+	sender, _ := sender.FromKey(hexutil.Encode(crypto.FromECDSA(s.relaySK)))
 
 	mockCtrl := gomock.NewController(s.T())
-	producer := mocks.NewMockProducer(mockCtrl)
+	s.producer = mocks.NewMockProducer(mockCtrl)
 
-	w := Watcher{
+	s.w = Watcher{
 		logger:             &logger,
 		confirmationBlocks: big.NewInt(3),
 		boostAfterBlocks:   big.NewInt(10),
-		prod:               producer,
+		prod:               s.producer,
 		dbs:                s.dbs,
-		client:             client,
+		client:             s.client,
 		sender:             sender,
 		chainID:            big.NewInt(1337),
 		walletIndex:        2,
 	}
+}
+
+func (s *WatcherTestSuite) TestSubmitSuccess() {
+	ctx := context.Background()
 
 	mtr := models.MetaTransactionRequest{
 		ID:          ksuid.New().String(),
-		To:          contractAddr.Bytes(),
+		To:          s.contractAddr.Bytes(),
 		WalletIndex: 2,
 		Data:        common.FromHex("0x7050f4c0"),
 	}
 
-	var txHash common.Hash
-	producer.EXPECT().Submitted(gomock.Any()).DoAndReturn(func(msg *status.SubmittedMsg) {
-		s.Require().Equal(mtr.ID, msg.ID)
-		txHash = msg.Hash
-	})
+	subCapt := &ArgCaptor[*status.SubmittedMsg]{}
 
-	err = mtr.Insert(ctx, s.dbs.DBS().Writer, boil.Infer())
+	s.producer.EXPECT().Submitted(subCapt)
+
+	err := mtr.Insert(ctx, s.dbs.DBS().Writer, boil.Infer())
 	s.Require().NoError(err)
 
-	backend.Commit()
+	s.backend.Commit()
 
-	submissionBlock, err := client.BlockByNumber(ctx, nil)
+	submissionBlock, err := s.client.BlockByNumber(ctx, nil)
 	s.Require().NoError(err)
 
-	err = w.Tick(ctx)
+	err = s.w.Tick(ctx)
 	s.Require().NoError(err)
 
-	backend.Commit()
-	_, pending, err := client.TransactionByHash(ctx, txHash)
+	s.Require().Equal(mtr.ID, subCapt.Value().ID)
+	txHash := subCapt.Value().Hash
+
+	s.backend.Commit()
+	_, pending, err := s.client.TransactionByHash(ctx, txHash)
 	s.Require().NoError(err)
 
 	s.False(pending)
@@ -191,28 +209,82 @@ func (s *ProcessorTestSuite) TestSubmitNew() {
 	s.Equal(big.NewInt(2), mtr.SubmittedBlockNumber.Int(nil))
 	s.Equal(submissionBlock.Hash().Bytes(), mtr.SubmittedBlockHash.Bytes)
 
-	backend.Commit()
+	s.backend.Commit()
 
-	producer.EXPECT().Mined(&status.MinedMsg{
+	s.producer.EXPECT().Mined(&status.MinedMsg{
 		ID:   mtr.ID,
 		Hash: txHash,
 	})
 
-	err = w.Tick(ctx)
+	err = s.w.Tick(ctx)
 	s.Require().NoError(err)
 
-	err = mtr.Reload(ctx, dbs.DBS().Reader)
+	err = mtr.Reload(ctx, s.dbs.DBS().Reader)
 	s.Require().NoError(err)
 
 	s.Equal(big.NewInt(3), mtr.MinedBlockNumber.Int(nil))
 
-	backend.Commit()
-	err = w.Tick(ctx)
+	s.backend.Commit()
+	err = s.w.Tick(ctx)
 	s.Require().NoError(err)
 
-	producer.EXPECT().Confirmed(gomock.Any())
+	s.producer.EXPECT().Confirmed(&status.ConfirmedMsg{
+		ID:         mtr.ID,
+		Hash:       txHash,
+		Logs:       make([]*status.Log, 0),
+		Successful: true,
+	})
 
-	backend.Commit()
-	err = w.Tick(ctx)
+	s.backend.Commit()
+	err = s.w.Tick(ctx)
 	s.Require().NoError(err)
+}
+
+func (s *WatcherTestSuite) TestSubmitCustomErrorWithArgs() {
+	ctx := context.Background()
+
+	mtr := models.MetaTransactionRequest{
+		ID:          ksuid.New().String(),
+		To:          s.contractAddr.Bytes(),
+		WalletIndex: 2,
+		Data:        common.FromHex("0x4740a9ce"),
+	}
+
+	abi, _ := testcontract.TestcontractMetaData.GetAbi()
+	b, err := abi.Errors["ErrorOneArg"].Inputs.Pack(big.NewInt(42))
+	s.Require().NoError(err)
+
+	b = append(abi.Errors["ErrorOneArg"].ID.Bytes()[:4], b...)
+
+	s.producer.EXPECT().Failed(&status.FailedMsg{
+		ID:   mtr.ID,
+		Data: b,
+	})
+
+	err = mtr.Insert(ctx, s.dbs.DBS().Writer, boil.Infer())
+	s.Require().NoError(err)
+
+	err = s.w.Tick(ctx)
+	s.Require().NoError(err)
+}
+
+type ArgCaptor[A any] struct {
+	value A
+}
+
+func (m *ArgCaptor[A]) Matches(x any) bool {
+	// Not thread safe!
+	if a, ok := x.(A); ok {
+		m.value = a
+		return true
+	}
+	return false
+}
+
+func (m *ArgCaptor[A]) String() string {
+	return fmt.Sprintf("Matches and captures a value of type %T", m.value)
+}
+
+func (m *ArgCaptor[A]) Value() A {
+	return m.value
 }

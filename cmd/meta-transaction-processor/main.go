@@ -52,30 +52,54 @@ type EmitLog struct {
 }
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	logger := zerolog.New(os.Stdout).With().Timestamp().Str("app", "meta-transaction-processor").Logger()
 	settings, err := shared.LoadConfig[config.Settings]("settings.yaml")
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Couldn't load settings.")
 	}
 
-	if len(os.Args) > 1 && os.Args[1] == "migrate" {
-		command := "up"
-		if len(os.Args) > 2 {
-			command = os.Args[2]
-			if command == "down-to" || command == "up-to" {
-				command = command + " " + os.Args[3]
-			}
-		}
-		migrateDatabase(logger, &settings, command)
-		return
-	}
+	logger.Info().Msgf("Loaded settings: %d second block time, %d blocks for confirmations, %d blocks before boosting.", settings.BlockTime, settings.ConfirmationBlocks, settings.BoostAfterBlocks)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	if len(os.Args) >= 2 {
+		switch os.Args[1] {
+		case "print-kms-address":
+			if len(os.Args) < 3 {
+				logger.Fatal().Msg("Key id required.")
+			}
+
+			keyID := os.Args[2]
+			awsconf, err := makeAWSConfig(ctx, &settings)
+			if err != nil {
+				logger.Fatal().Err(err).Msg("Failed to load AWS config.")
+			}
+
+			kmsc := kms.NewFromConfig(awsconf)
+			send, err := sender.FromKMS(ctx, kmsc, keyID)
+			if err != nil {
+				logger.Fatal().Err(err).Msg("Failed to construct account.")
+			}
+
+			logger.Info().Msgf("Key corresponds to address %s.", send.Address())
+			return
+		case "migrate":
+			command := "up"
+			if len(os.Args) > 2 {
+				command = os.Args[2]
+				if command == "down-to" || command == "up-to" {
+					command = command + " " + os.Args[3]
+				}
+			}
+			migrateDatabase(logger, &settings, command)
+			return
+		default:
+			logger.Error().Msgf("Unrecognized sub-command %q.", os.Args[1])
+		}
+	}
 
 	pdb := db.NewDbConnectionFromSettings(ctx, &settings.DB, true)
 	pdb.WaitForDB(logger)
-
-	logger.Info().Msgf("Loaded settings: %d second block time, %d blocks for confirmations, %d blocks before boosting.", settings.BlockTime, settings.ConfirmationBlocks, settings.BoostAfterBlocks)
 
 	confirmationBlocks := big.NewInt(settings.ConfirmationBlocks)
 
@@ -177,26 +201,11 @@ func createSenders(ctx context.Context, settings *config.Settings, logger *zerol
 
 		return senders, nil
 	} else {
-		customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-			if settings.AWSEndpoint != "" {
-				return aws.Endpoint{
-					PartitionID:   "aws",
-					URL:           settings.AWSEndpoint,
-					SigningRegion: settings.AWSRegion,
-				}, nil
-			}
-
-			// returning EndpointNotFoundError will allow the service to fallback to its default resolution
-			return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-		})
-
-		awsconf, err := awsconfig.LoadDefaultConfig(ctx,
-			awsconfig.WithRegion(settings.AWSRegion),
-			awsconfig.WithEndpointResolverWithOptions(customResolver),
-		)
+		awsconf, err := makeAWSConfig(ctx, settings)
 		if err != nil {
 			return nil, err
 		}
+
 		kmsc := kms.NewFromConfig(awsconf)
 
 		keyIDs := strings.Split(settings.KMSKeyIDs, ",")
@@ -213,6 +222,27 @@ func createSenders(ctx context.Context, settings *config.Settings, logger *zerol
 
 		return senders, nil
 	}
+}
+
+func makeAWSConfig(ctx context.Context, settings *config.Settings) (aws.Config, error) {
+	// AWS endpoint setting for LocalStack support.
+	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+		if settings.AWSEndpoint != "" {
+			return aws.Endpoint{
+				PartitionID:   "aws",
+				URL:           settings.AWSEndpoint,
+				SigningRegion: settings.AWSRegion,
+			}, nil
+		}
+
+		// Returning EndpointNotFoundError will fall back to the default endpoint resolution.
+		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
+	})
+
+	return awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithRegion(settings.AWSRegion),
+		awsconfig.WithEndpointResolverWithOptions(customResolver),
+	)
 }
 
 func createKafka(settings *config.Settings) (sarama.Client, error) {

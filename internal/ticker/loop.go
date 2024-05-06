@@ -174,7 +174,29 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 				gasLimit, err := w.client.EstimateGas(ctx, callMsg)
 				if err != nil {
-					return fmt.Errorf("failed to estimate gas usage: %w", err)
+					logger.Err(err).Msg("Failed to estimate gas usage for transaction.")
+
+					var outData []byte
+
+					// TODO(elffjs): More logging if this doesn't meet our expectations.
+					// There is no contract around these error values.
+					if jerr, ok := err.(ethJSONRPCError); ok {
+						logger.Error().Str("message", jerr.Error()).Int("code", jerr.ErrorCode()).Interface("data", jerr.ErrorData()).Msg("Transaction failed with a JSON-RPC error.")
+						if hexData, ok := jerr.ErrorData().(string); ok {
+							if data, err := hexutil.Decode(hexData); err == nil && len(data) != 0 {
+								outData = data
+							}
+						}
+					}
+
+					w.prod.Failed(&status.FailedMsg{ID: activeTx.ID, Data: outData})
+
+					_, err := activeTx.Delete(ctx, w.dbs.DBS().Writer)
+					if err != nil {
+						return fmt.Errorf("failed to delete un-estimateable transaction: %w", err)
+					}
+
+					return nil
 				}
 
 				gasLimit = 2 * gasLimit

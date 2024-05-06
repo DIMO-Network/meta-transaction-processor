@@ -363,7 +363,6 @@ func (w *Watcher) Tick(ctx context.Context) error {
 					outData = data
 				}
 			}
-		}
 		} else {
 			return fmt.Errorf("error estimating gas: %w", err)
 		}

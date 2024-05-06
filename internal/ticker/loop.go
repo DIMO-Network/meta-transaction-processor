@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/volatiletech/null/v8"
@@ -39,9 +40,8 @@ type EthClient interface {
 // ethJSONRPCError mirrors the methods of the unexported rpc.jsonError type from
 // go-ethereum.
 type ethJSONRPCError interface {
-	Error() string
-	ErrorCode() int
-	ErrorData() any
+	rpc.Error
+	rpc.DataError
 }
 
 type Watcher struct {
@@ -187,6 +187,8 @@ func (w *Watcher) Tick(ctx context.Context) error {
 								outData = data
 							}
 						}
+					} else {
+						return fmt.Errorf("error estimating gas: %w", err)
 					}
 
 					w.prod.Failed(&status.FailedMsg{ID: activeTx.ID, Data: outData})
@@ -361,6 +363,9 @@ func (w *Watcher) Tick(ctx context.Context) error {
 					outData = data
 				}
 			}
+		}
+		} else {
+			return fmt.Errorf("error estimating gas: %w", err)
 		}
 
 		w.prod.Failed(&status.FailedMsg{ID: sendTx.ID, Data: outData})

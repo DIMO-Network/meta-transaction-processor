@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math/big"
+	"strconv"
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/models"
 	"github.com/DIMO-Network/meta-transaction-processor/internal/sender"
@@ -87,11 +88,12 @@ var latestBlock = promauto.NewGauge(prometheus.GaugeOpts{
 	Name:      "latest_block",
 })
 
-var submittedTxBlockAge = promauto.NewGauge(
+var submittedTxBlockAge = promauto.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Namespace: "meta_transaction_processor",
 		Name:      "submitted_tx_block_age",
 	},
+	[]string{"wallet"},
 )
 
 func (w *Watcher) Tick(ctx context.Context) error {
@@ -119,7 +121,9 @@ func (w *Watcher) Tick(ctx context.Context) error {
 	} else {
 		// We have a submitted but not confirmed (it would have been deleted) transaction.
 		subBlockNum, _ := activeTx.SubmittedBlockNumber.Float64()
-		submittedTxBlockAge.Set(headNumFloat - subBlockNum)
+
+		// TODO(elffjs): Can we do this label-setting once?
+		submittedTxBlockAge.With(prometheus.Labels{"wallet": strconv.Itoa(w.walletIndex)}).Set(headNumFloat - subBlockNum)
 
 		logger := logger.With().Str("requestId", activeTx.ID).Str("contract", common.BytesToAddress(activeTx.To).Hex()).Logger()
 
@@ -311,7 +315,7 @@ func (w *Watcher) Tick(ctx context.Context) error {
 	}
 
 	// At this point, there's nothing in the table that's been submitted. Try to submit something.
-	submittedTxBlockAge.Set(0)
+	submittedTxBlockAge.With(prometheus.Labels{"wallet": strconv.Itoa(w.walletIndex)}).Set(0)
 
 	sendTx, err := models.MetaTransactionRequests(
 		qm.OrderBy(models.MetaTransactionRequestColumns.ID+" ASC"),

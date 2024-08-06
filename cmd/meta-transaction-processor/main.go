@@ -142,7 +142,7 @@ func main() {
 	var tickerGroup sync.WaitGroup
 
 	for i, sender := range senders {
-		watcher := ticker.New(&logger, sprod, confirmationBlocks, boostAfterBlocks, pdb, ethClient, chainID, sender, i)
+		watcher := ticker.New(&logger, sprod, confirmationBlocks, boostAfterBlocks, pdb, ethClient, chainID, sender, i, settings.DisableBoosting)
 
 		tickerGroup.Add(1)
 

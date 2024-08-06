@@ -55,6 +55,7 @@ type Watcher struct {
 	sender             sender.Sender
 	chainID            *big.Int
 	walletIndex        int
+	disableBoosting    bool
 }
 
 func New(
@@ -67,6 +68,7 @@ func New(
 	chainID *big.Int,
 	sender sender.Sender,
 	walletIndex int,
+	disableBoosting bool,
 ) *Watcher {
 	return &Watcher{
 		logger:             logger,
@@ -78,6 +80,7 @@ func New(
 		chainID:            chainID,
 		sender:             sender,
 		walletIndex:        walletIndex,
+		disableBoosting:    disableBoosting,
 	}
 }
 
@@ -150,6 +153,10 @@ func (w *Watcher) Tick(ctx context.Context) error {
 			}
 
 			if new(big.Int).Sub(headNum, lastSend).Cmp(w.boostAfterBlocks) >= 0 {
+				if w.disableBoosting {
+					logger.Warn().Msgf("Would have boosted after %d blocks, but boosting disabled.", new(big.Int).Sub(headNum, lastSend))
+					return nil
+				}
 				signer := ethtypes.LatestSignerForChainID(w.chainID)
 
 				gasPrice, err := w.client.SuggestGasPrice(ctx)
@@ -338,6 +345,8 @@ func (w *Watcher) Tick(ctx context.Context) error {
 
 	signer := ethtypes.LatestSignerForChainID(w.chainID)
 
+	// TODO(elffjs): Look at EIP-1559 stuff. Seems weird on Polygon and their oracles
+	// are weird.
 	gasPrice, err := w.client.SuggestGasPrice(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve gas price estimate: %w", err)

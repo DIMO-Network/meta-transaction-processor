@@ -40,6 +40,7 @@ env:
   DB_PORT: '5432'
   DB_NAME: meta_transaction_processor
   GAS_PRICE_FACTOR: 2
+  DISABLE_BOOSTING: true
 service:
   type: ClusterIP
   ports:

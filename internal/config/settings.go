@@ -62,4 +62,6 @@ type Settings struct {
 
 	AWSEndpoint string `yaml:"AWS_ENDPOINT"`
 	AWSRegion   string `yaml:"AWS_REGION"`
+
+	DisableBoosting bool `yaml:"DISABLE_BOOSTING"`
 }

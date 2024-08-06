@@ -26,4 +26,4 @@ spec:
         namespace: {{ .Release.Namespace }}
       annotations:
         summary: "Transaction taking a long time to mine"
-        description: 'Wallet {{ "{{" }} $labels.wallet {{ "}}" }} has been waiting {{ "{{" }} $value {{ "}}" blocks for a transaction to mine.'
+        description: 'Wallet {{ "{{" }} $labels.wallet {{ "}}" }} has been waiting {{ "{{" }} $value {{ "}}" }} blocks for a transaction to mine.'

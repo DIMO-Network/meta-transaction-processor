@@ -18,3 +18,12 @@ spec:
       annotations:
         summary: "Tick failures"
         description: 'Meta-transaction ticks have been erroring for more than 2 minutes.'
+    - alert: LongTimeToMine
+      expr: sum(meta_transaction_processor_submitted_tx_block_age{namespace="{{ .Release.Namespace }}"}) by (wallet) > 75
+      for: 2m
+      labels:
+        severity: critical
+        namespace: {{ .Release.Namespace }}
+      annotations:
+        summary: "Transaction taking a long time to mine"
+        description: 'Wallet {{ "{{" }} $labels.wallet {{ "}}" }} has been waiting {{ "{{" }} $value {{ "}}" blocks for a transaction to mine.'

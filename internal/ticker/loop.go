@@ -413,6 +413,13 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		return fmt.Errorf("failed to attach signature to transaction: %w", err)
 	}
 
+	logger.Info().Msgf("Submitting transaction with nonce %d and hash %s.", nonce, signedTx.Hash())
+
+	err = w.client.SendTransaction(ctx, signedTx)
+	if err != nil {
+		return fmt.Errorf("failed to submit transaction: %w", err)
+	}
+
 	sendTx.SubmittedBlockNumber = types.NewNullDecimal(new(decimal.Big).SetBigMantScale(headNum, 0))
 	sendTx.SubmittedBlockHash = null.BytesFrom(head.Hash().Bytes())
 	sendTx.Nonce = types.NewNullDecimal(new(decimal.Big).SetUint64(nonce))
@@ -429,13 +436,6 @@ func (w *Watcher) Tick(ctx context.Context) error {
 	))
 	if err != nil {
 		return err
-	}
-
-	logger.Info().Msgf("Submitting transaction with nonce %d and hash %s.", nonce, signedTx.Hash())
-
-	err = w.client.SendTransaction(ctx, signedTx)
-	if err != nil {
-		return fmt.Errorf("failed to submit transaction: %w", err)
 	}
 
 	w.prod.Submitted(&status.SubmittedMsg{

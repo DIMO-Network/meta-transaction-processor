@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"encoding/json"
+	"math/rand/v2"
 
 	"github.com/DIMO-Network/meta-transaction-processor/internal/models"
 	"github.com/DIMO-Network/shared"
@@ -64,8 +65,7 @@ func (c *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim saram
 
 			logger = logger.With().Str("requestId", data.ID).Str("contract", data.To.Hex()).Logger()
 
-			// assignedWalletIndex := rand.Intn(c.numWallets)
-			assignedWalletIndex := 1
+			assignedWalletIndex := rand.IntN(c.numWallets)
 
 			logger.Info().Int("assignedWalletIndex", assignedWalletIndex).Msg("Got transaction request.")
 

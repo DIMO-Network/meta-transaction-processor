@@ -72,7 +72,7 @@ func (s *WatcherTestSuite) SetupSuite() {
 
 	container, err := postgres.RunContainer(
 		ctx,
-		testcontainers.WithImage("docker.io/postgres:12.9-alpine"),
+		testcontainers.WithImage("docker.io/postgres:16.6-alpine"),
 		postgres.WithDatabase("meta_transaction_processor"),
 		postgres.WithUsername("dimo"),
 		postgres.WithPassword("dimo"),

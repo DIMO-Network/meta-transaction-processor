@@ -25,9 +25,11 @@ import (
 	"github.com/DIMO-Network/shared/db"
 	"github.com/DIMO-Network/shared/middleware/metrics"
 	"github.com/IBM/sarama"
-	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/burdiyan/kafkautil"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -36,13 +38,9 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"google.golang.org/grpc"
-
-	"github.com/burdiyan/kafkautil"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc"
 )
 
 type EmitLog struct {
@@ -70,12 +68,11 @@ func main() {
 			}
 
 			keyID := os.Args[2]
-			awsconf, err := makeAWSConfig(ctx, &settings)
+			kmsc, err := makeKMSClient(ctx, &settings)
 			if err != nil {
 				logger.Fatal().Err(err).Msg("Failed to load AWS config.")
 			}
 
-			kmsc := kms.NewFromConfig(awsconf)
 			send, err := sender.FromKMS(ctx, kmsc, keyID)
 			if err != nil {
 				logger.Fatal().Err(err).Msg("Failed to construct account.")
@@ -201,12 +198,10 @@ func createSenders(ctx context.Context, settings *config.Settings, logger *zerol
 
 		return senders, nil
 	} else {
-		awsconf, err := makeAWSConfig(ctx, settings)
+		kmsc, err := makeKMSClient(ctx, settings)
 		if err != nil {
 			return nil, err
 		}
-
-		kmsc := kms.NewFromConfig(awsconf)
 
 		keyIDs := strings.Split(settings.KMSKeyIDs, ",")
 		senders := make([]sender.Sender, len(keyIDs))
@@ -224,25 +219,20 @@ func createSenders(ctx context.Context, settings *config.Settings, logger *zerol
 	}
 }
 
-func makeAWSConfig(ctx context.Context, settings *config.Settings) (aws.Config, error) {
-	// AWS endpoint setting for LocalStack support.
-	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-		if settings.AWSEndpoint != "" {
-			return aws.Endpoint{
-				PartitionID:   "aws",
-				URL:           settings.AWSEndpoint,
-				SigningRegion: settings.AWSRegion,
-			}, nil
-		}
-
-		// Returning EndpointNotFoundError will fall back to the default endpoint resolution.
-		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
-	})
-
-	return awsconfig.LoadDefaultConfig(ctx,
+func makeKMSClient(ctx context.Context, settings *config.Settings) (*kms.Client, error) {
+	conf, err := awsconfig.LoadDefaultConfig(ctx,
 		awsconfig.WithRegion(settings.AWSRegion),
-		awsconfig.WithEndpointResolverWithOptions(customResolver),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
+	}
+
+	kmsc := kms.NewFromConfig(conf, func(o *kms.Options) {
+		if settings.AWSEndpoint != "" {
+			o.BaseEndpoint = &settings.AWSEndpoint
+		}
+	})
+	return kmsc, nil
 }
 
 func createKafka(settings *config.Settings) (sarama.Client, error) {

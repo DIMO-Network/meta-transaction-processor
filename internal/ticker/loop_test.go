@@ -70,9 +70,9 @@ var eth = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 func (s *WatcherTestSuite) SetupSuite() {
 	ctx := context.Background()
 
-	container, err := postgres.RunContainer(
+	container, err := postgres.Run(
 		ctx,
-		testcontainers.WithImage("docker.io/postgres:12.9-alpine"),
+		"docker.io/postgres:16.6-alpine",
 		postgres.WithDatabase("meta_transaction_processor"),
 		postgres.WithUsername("dimo"),
 		postgres.WithPassword("dimo"),

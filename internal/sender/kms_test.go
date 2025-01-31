@@ -22,9 +22,7 @@ import (
 func TestKMSSenderSign(t *testing.T) {
 	ctx := context.Background()
 
-	localstackContainer, err := localstack.RunContainer(ctx,
-		testcontainers.WithImage("localstack/localstack:latest"),
-	)
+	localstackContainer, err := localstack.Run(ctx, "localstack/localstack:latest")
 	if err != nil {
 		t.Fatalf("failed to start container: %s", err)
 	}
@@ -51,21 +49,14 @@ func TestKMSSenderSign(t *testing.T) {
 		t.Fatal()
 	}
 
-	customResolver := aws.EndpointResolverWithOptionsFunc(
-		func(service, region string, opts ...interface{}) (aws.Endpoint, error) {
-			return aws.Endpoint{
-				URL: fmt.Sprintf("http://%s:%d", host, mappedPort.Int()),
-			}, nil
-		})
-
-	awsCfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithEndpointResolverWithOptions(customResolver),
-	)
+	conf, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		t.Fatal()
+		t.Fatalf("unable to load SDK config, %v", err)
 	}
 
-	kmsClient := kms.NewFromConfig(awsCfg)
+	kmsClient := kms.NewFromConfig(conf, func(o *kms.Options) {
+		o.BaseEndpoint = aws.String(fmt.Sprintf("http://%s:%d", host, mappedPort.Int()))
+	})
 
 	createOut, err := kmsClient.CreateKey(ctx, &kms.CreateKeyInput{
 		KeySpec:  types.KeySpecEccSecgP256k1,

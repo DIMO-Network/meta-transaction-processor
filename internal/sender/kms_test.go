@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -34,7 +35,9 @@ func TestKMSSenderSign(t *testing.T) {
 		t.Fatalf("failed to get endpoint: %s", err)
 	}
 
-	conf, err := config.LoadDefaultConfig(ctx)
+	conf, err := config.LoadDefaultConfig(ctx,
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("accesskey", "secretkey", "token")),
+	)
 	if err != nil {
 		t.Fatalf("unable to load SDK config, %v", err)
 	}

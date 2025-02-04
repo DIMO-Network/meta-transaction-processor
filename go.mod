@@ -1,8 +1,6 @@
 module github.com/DIMO-Network/meta-transaction-processor
 
-go 1.22.3
-
-toolchain go1.23.5
+go 1.23
 
 require (
 	github.com/DIMO-Network/shared v0.12.9

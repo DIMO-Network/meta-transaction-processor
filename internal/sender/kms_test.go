@@ -22,7 +22,7 @@ import (
 func TestKMSSenderSign(t *testing.T) {
 	ctx := context.Background()
 
-	localstackContainer, err := localstack.Run(ctx, "localstack/localstack:latest")
+	localstackContainer, err := localstack.Run(ctx, "localstack/localstack:3.7.0")
 	if err != nil {
 		t.Fatalf("failed to start container: %s", err)
 	}

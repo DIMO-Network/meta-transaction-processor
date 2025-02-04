@@ -6,6 +6,7 @@ image:
 cronJob:
   enabled: false
 env:
+  DB_SSL_MODE: disable
   ENVIRONMENT: prod
   CONFIRMATION_BLOCKS: 5
   PRIVATE_KEY_MODE: false

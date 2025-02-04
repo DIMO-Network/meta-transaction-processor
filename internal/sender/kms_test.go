@@ -3,18 +3,14 @@ package sender
 import (
 	"context"
 	"crypto/rand"
-	"fmt"
 	"log"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
-	"github.com/docker/go-connections/nat"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/localstack"
 )
 
@@ -33,20 +29,9 @@ func TestKMSSenderSign(t *testing.T) {
 		}
 	}()
 
-	mappedPort, err := localstackContainer.MappedPort(ctx, nat.Port("4566/tcp"))
+	endpoint, err := localstackContainer.PortEndpoint(ctx, "4566/tcp", "http")
 	if err != nil {
-		t.Fatal()
-	}
-
-	provider, err := testcontainers.NewDockerProvider()
-	if err != nil {
-		t.Fatal()
-	}
-	defer provider.Close()
-
-	host, err := provider.DaemonHost(ctx)
-	if err != nil {
-		t.Fatal()
+		t.Fatalf("failed to get endpoint: %s", err)
 	}
 
 	conf, err := config.LoadDefaultConfig(ctx)
@@ -55,7 +40,7 @@ func TestKMSSenderSign(t *testing.T) {
 	}
 
 	kmsClient := kms.NewFromConfig(conf, func(o *kms.Options) {
-		o.BaseEndpoint = aws.String(fmt.Sprintf("http://%s:%d", host, mappedPort.Int()))
+		o.BaseEndpoint = &endpoint
 	})
 
 	createOut, err := kmsClient.CreateKey(ctx, &kms.CreateKeyInput{

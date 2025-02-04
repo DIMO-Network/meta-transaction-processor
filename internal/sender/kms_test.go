@@ -63,7 +63,7 @@ func TestKMSSenderSign(t *testing.T) {
 		KeyUsage: types.KeyUsageTypeSignVerify,
 	})
 	if err != nil {
-		t.Fatal()
+		t.Fatal(err)
 	}
 
 	keyID := *createOut.KeyMetadata.KeyId

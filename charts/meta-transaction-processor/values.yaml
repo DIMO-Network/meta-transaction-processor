@@ -39,6 +39,7 @@ env:
   DB_MAX_IDLE_CONNECTIONS: 10
   DB_PORT: '5432'
   DB_NAME: meta_transaction_processor
+  DB_SSL_MODE: require
   GAS_PRICE_FACTOR: 2
   DISABLE_BOOSTING: true
 service:

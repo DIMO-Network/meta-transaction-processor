@@ -19,7 +19,7 @@ securityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop:
-      - all
+    - all
 cronJob:
   enabled: false
   schedule: 0 0 * * 0
@@ -54,12 +54,12 @@ service:
       targetPort: grpc
       protocol: TCP
 ports:
-  - name: mon-http
-    containerPort: 8888
-    protocol: TCP
-  - name: grpc
-    containerPort: 8086
-    protocol: TCP
+- name: mon-http
+  containerPort: 8888
+  protocol: TCP
+- name: grpc
+  containerPort: 8086
+  protocol: TCP
 ingress:
   enabled: false
   className: nginx
@@ -71,18 +71,18 @@ ingress:
     nginx.ingress.kubernetes.io/limit-rps: '3'
     external-dns.alpha.kubernetes.io/hostname: meta-transaction-processor.dev.dimo.zone
   hosts:
-    - host: meta-transaction-processor.dev.dimo.zone
-      paths:
-        - path: /
-          pathType: ImplementationSpecific
+  - host: meta-transaction-processor.dev.dimo.zone
+    paths:
+    - path: /
+      pathType: ImplementationSpecific
   tls: []
 resources:
   limits:
     cpu: 250m
     memory: 384Mi
   requests:
-    cpu: 50m
-    memory: 64Mi
+    cpu: 5m
+    memory: 32Mi
 autoscaling:
   enabled: false
   minReplicas: 1
@@ -96,18 +96,18 @@ podDisruptionBudget:
 kafka:
   clusterName: kafka-dev-dimo-kafka
   topics:
-    - name: topic.transaction.request.send
-      config:
-        segment.ms: '3600000'
-        compression.type: producer
-        cleanup.policy: delete
-        min.compaction.lag.ms: '3600000'
-    - name: topic.transaction.request.status
-      config:
-        segment.ms: '3600000'
-        compression.type: producer
-        cleanup.policy: delete
-        min.compaction.lag.ms: '3600000'
+  - name: topic.transaction.request.send
+    config:
+      segment.ms: '3600000'
+      compression.type: producer
+      cleanup.policy: delete
+      min.compaction.lag.ms: '3600000'
+  - name: topic.transaction.request.status
+    config:
+      segment.ms: '3600000'
+      compression.type: producer
+      cleanup.policy: delete
+      min.compaction.lag.ms: '3600000'
 serviceMonitor:
   enabled: true
   path: /metrics

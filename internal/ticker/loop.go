@@ -100,18 +100,6 @@ var submittedTxBlockAge = promauto.NewGaugeVec(
 )
 
 func (w *Watcher) Tick(ctx context.Context) error {
-	head, err := w.client.HeaderByNumber(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve latest block: %w", err)
-	}
-
-	headNum := head.Number
-	headNumFloat, _ := headNum.Float64()
-
-	latestBlock.Set(headNumFloat)
-
-	logger := w.logger.With().Int64("block", headNum.Int64()).Int("walletIndex", w.walletIndex).Logger()
-
 	// There's at most one submitted transaction per wallet.
 	if activeTx, err := models.MetaTransactionRequests(
 		models.MetaTransactionRequestWhere.SubmittedBlockNumber.IsNotNull(),
@@ -125,10 +113,22 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		// We have a submitted but not confirmed (it would have been deleted) transaction.
 		subBlockNum, _ := activeTx.SubmittedBlockNumber.Float64()
 
+		head, err := w.client.HeaderByNumber(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to retrieve latest block: %w", err)
+		}
+
+		headNum := head.Number
+		headNumFloat, _ := headNum.Float64()
+
+		latestBlock.Set(headNumFloat)
+
+		logger := w.logger.With().Int64("block", headNum.Int64()).Int("walletIndex", w.walletIndex).Logger()
+
 		// TODO(elffjs): Can we do this label-setting once?
 		submittedTxBlockAge.With(prometheus.Labels{"wallet": strconv.Itoa(w.walletIndex)}).Set(headNumFloat - subBlockNum)
 
-		logger := logger.With().Str("requestId", activeTx.ID).Str("contract", common.BytesToAddress(activeTx.To).Hex()).Logger()
+		logger = logger.With().Str("requestId", activeTx.ID).Str("contract", common.BytesToAddress(activeTx.To).Hex()).Logger()
 
 		rec, err := w.client.TransactionReceipt(ctx, common.BytesToHash(activeTx.Hash.Bytes))
 		if err != nil {
@@ -335,6 +335,18 @@ func (w *Watcher) Tick(ctx context.Context) error {
 		}
 		return err
 	}
+
+	head, err := w.client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve latest block: %w", err)
+	}
+
+	headNum := head.Number
+	headNumFloat, _ := headNum.Float64()
+
+	latestBlock.Set(headNumFloat)
+
+	logger := w.logger.With().Int64("block", headNum.Int64()).Int("walletIndex", w.walletIndex).Logger()
 
 	logger = logger.With().Str("requestId", sendTx.ID).Str("contract", common.BytesToAddress(sendTx.To).Hex()).Logger()
 

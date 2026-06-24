@@ -29,6 +29,7 @@ import (
 	"time"
 
 	ethereum "github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -53,9 +54,17 @@ const (
 	// never drain them elsewhere.
 	pinnedDest = "0xB4536AfA9EE668E05503395AE17d2aD15CCd9069"
 
-	// ERC-20 selectors.
-	selTransfer  = "a9059cbb" // transfer(address,uint256)
-	selBalanceOf = "70a08231" // balanceOf(address)
+	// Minimal ERC-20 ABI for the two calls we make. Using the ABI (rather than
+	// hand-encoding selectors and 32-byte words) keeps the calldata self-evidently
+	// correct for review: the reviewer reads transfer(to, amount), not byte math.
+	erc20ABI = `[
+		{"name":"transfer","type":"function","stateMutability":"nonpayable",
+		 "inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],
+		 "outputs":[{"name":"","type":"bool"}]},
+		{"name":"balanceOf","type":"function","stateMutability":"view",
+		 "inputs":[{"name":"account","type":"address"}],
+		 "outputs":[{"name":"","type":"uint256"}]}
+	]`
 )
 
 // The KMS-backed reward wallets that received POL by mistake on Ethereum. The derived
@@ -96,6 +105,11 @@ func recoverPOL(ctx context.Context, logger zerolog.Logger, settings *config.Set
 		die(fmt.Sprintf("destination %s is not allowlisted; this tool only recovers to the gas-funder %s", toAddr, pinnedDest))
 	}
 
+	erc20, err := abi.JSON(strings.NewReader(erc20ABI))
+	if err != nil {
+		die("failed to parse ERC-20 ABI: " + err.Error())
+	}
+
 	client, err := ethclient.DialContext(ctx, *rpcURL)
 	if err != nil {
 		die("failed to dial RPC: " + err.Error())
@@ -128,7 +142,7 @@ func recoverPOL(ctx context.Context, logger zerolog.Logger, settings *config.Set
 	token := common.HexToAddress(polToken)
 
 	// Balances.
-	polBal, err := erc20BalanceOf(ctx, client, token, fromAddr)
+	polBal, err := erc20BalanceOf(ctx, client, erc20, token, fromAddr)
 	if err != nil {
 		die("failed to read POL balance: " + err.Error())
 	}
@@ -154,7 +168,10 @@ func recoverPOL(ctx context.Context, logger zerolog.Logger, settings *config.Set
 		die(fmt.Sprintf("amount %s > balance %s POL", formatUnits(amountWei, polDecimals), formatUnits(polBal, polDecimals)))
 	}
 
-	data := append(hexSelector(selTransfer), append(leftPad32(toAddr.Bytes()), leftPad32(amountWei.Bytes())...)...)
+	data, err := erc20.Pack("transfer", toAddr, amountWei)
+	if err != nil {
+		die("failed to encode transfer calldata: " + err.Error())
+	}
 
 	// Fees (EIP-1559) and gas.
 	head, err := client.HeaderByNumber(ctx, nil)
@@ -278,13 +295,27 @@ func isKnownWallet(addr common.Address) bool {
 	return false
 }
 
-func erc20BalanceOf(ctx context.Context, client *ethclient.Client, token, holder common.Address) (*big.Int, error) {
-	data := append(hexSelector(selBalanceOf), leftPad32(holder.Bytes())...)
-	out, err := client.CallContract(ctx, ethereum.CallMsg{To: &token, Data: data}, nil)
+func erc20BalanceOf(ctx context.Context, client *ethclient.Client, erc20 abi.ABI, token, holder common.Address) (*big.Int, error) {
+	callData, err := erc20.Pack("balanceOf", holder)
 	if err != nil {
 		return nil, err
 	}
-	return new(big.Int).SetBytes(out), nil
+	out, err := client.CallContract(ctx, ethereum.CallMsg{To: &token, Data: callData}, nil)
+	if err != nil {
+		return nil, err
+	}
+	vals, err := erc20.Unpack("balanceOf", out)
+	if err != nil {
+		return nil, err
+	}
+	if len(vals) != 1 {
+		return nil, fmt.Errorf("unexpected balanceOf return arity %d", len(vals))
+	}
+	bal, ok := vals[0].(*big.Int)
+	if !ok {
+		return nil, fmt.Errorf("balanceOf did not return a uint256")
+	}
+	return bal, nil
 }
 
 func waitMined(ctx context.Context, client *ethclient.Client, hash common.Hash) (*types.Receipt, error) {
@@ -307,26 +338,11 @@ func waitMined(ctx context.Context, client *ethclient.Client, hash common.Hash) 
 	}
 }
 
-func hexSelector(sel string) []byte {
-	b := make([]byte, 4)
-	for i := 0; i < 4; i++ {
-		fmt.Sscanf(sel[i*2:i*2+2], "%02x", &b[i])
-	}
-	return b
-}
-
-func leftPad32(b []byte) []byte {
-	out := make([]byte, 32)
-	copy(out[32-len(b):], b)
-	return out
-}
-
 // parseUnits converts a decimal string (e.g. "1.5") into a base-unit integer with the
 // given number of decimals.
 func parseUnits(s string, decimals int) (*big.Int, error) {
 	s = strings.TrimSpace(s)
-	neg := strings.HasPrefix(s, "-")
-	if neg {
+	if strings.HasPrefix(s, "-") {
 		return nil, fmt.Errorf("negative amount")
 	}
 	parts := strings.SplitN(s, ".", 2)

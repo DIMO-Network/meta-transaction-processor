@@ -80,9 +80,6 @@ func main() {
 
 			logger.Info().Msgf("Key corresponds to address %s.", send.Address())
 			return
-		case "recover-native-pol":
-			recoverNativePOL(ctx, logger, &settings, os.Args[2:])
-			return
 		case "migrate":
 			command := "up"
 			if len(os.Args) > 2 {
